@@ -1,0 +1,10 @@
+# needed
+env/
+.env
+
+# to hide
+mteb/
+results/
+articles/
+data/
+models/
