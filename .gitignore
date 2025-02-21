@@ -2,10 +2,17 @@
 env/
 .env
 
-# to hide
+# libs
 mteb/
+
+# results
 results/
 noisy_results/
+
+# data
+spec_articles
 articles/
 data/
+
+# models
 models/
