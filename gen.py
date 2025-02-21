@@ -1,9 +1,10 @@
 """
 Playing around with noisy benchmark creation
 """
+
 import openai
 import numpy as np
-from datasets import load_dataset
+from datasets import Dataset, DatasetDict, load_dataset
 import os
 from dotenv import load_dotenv
 from tqdm import tqdm
@@ -12,6 +13,7 @@ from tqdm import tqdm
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 client = openai.OpenAI(api_key=OPENAI_API_KEY)
+
 
 def calculate_text_stats(texts):
     # Get the length of each text
@@ -26,8 +28,9 @@ def calculate_text_stats(texts):
         "mean_length": mean_length,
         "median_length": median_length,
         "lengths": lengths,
-        "total_texts": len(texts)
+        "total_texts": len(texts),
     }
+
 
 def load_data():
     """
@@ -52,12 +55,11 @@ def load_data():
     queries = new_data["queries"]
 
     # Load in qfrels
-    last_data = load_dataset(
-        "mteb/nfcorpus"
-    )
+    last_data = load_dataset("mteb/nfcorpus")
     qfrels = last_data["test"]
-    
+
     return corpus, queries, qfrels, docs
+
 
 def write_queries():
     """
@@ -72,6 +74,7 @@ def write_queries():
         for query in queries["text"]:  # Assuming queries have a "text" field
             file.write(query + "\n")
 
+
 def chat_with_gpt(prompt, model="gpt-3.5-turbo", max_tokens=100):
     """
     ChatGPT wrapper baby
@@ -84,6 +87,7 @@ def chat_with_gpt(prompt, model="gpt-3.5-turbo", max_tokens=100):
     )
     return response.choices[0].message.content
 
+
 def generate_text(topic, target_length, model="gpt-3.5-turbo"):
     """
     Generates text for a given topic, limiting the length based on mean/median.
@@ -92,7 +96,10 @@ def generate_text(topic, target_length, model="gpt-3.5-turbo"):
     prompt = f"Write an article, at a middle-school level, on the following topic: {topic}. Also make it a bit messy, which means it can include some irrelavnt information and some typos every now and then."
     return chat_with_gpt(prompt, model, max_tokens)
 
-def generate_articles_for_topics(topics, num_articles=3, target_length=1500, model="gpt-3.5-turbo"):
+
+def generate_articles_for_topics(
+    topics, num_articles=3, target_length=1500, model="gpt-3.5-turbo"
+):
     """
     Generates a specified number of articles for each topic and saves them in separate folders.
     """
@@ -102,14 +109,14 @@ def generate_articles_for_topics(topics, num_articles=3, target_length=1500, mod
     os.makedirs(base_folder, exist_ok=True)
 
     articles = {}
-    
+
     for topic in tqdm(topics):
         # Create a folder for each topic, replacing spaces with underscores for safety
         topic_folder = os.path.join(base_folder, topic.replace(" ", "_"))
         os.makedirs(topic_folder, exist_ok=True)
 
         topic_articles = []
-        
+
         for i in range(num_articles):
             article = generate_text(topic, target_length, model)
 
@@ -119,22 +126,26 @@ def generate_articles_for_topics(topics, num_articles=3, target_length=1500, mod
                 f.write(article)
 
             topic_articles.append(article)
-        
+
         articles[topic] = topic_articles
 
     return articles
+
 
 def read_topics_into_n_strings(file_path, n):
     """
     Reads a text file and splits its contents into `n` separate strings.
     """
     with open(file_path, "r", encoding="utf-8") as file:
-        lines = [line.strip() for line in file.readlines() if line.strip()]  # Remove empty lines
+        lines = [
+            line.strip() for line in file.readlines() if line.strip()
+        ]  # Remove empty lines
 
     # Split lines into N parts as evenly as possible
     split_strings = ["\n".join(lines[i::n]) for i in range(n)]
-    
+
     return tuple(split_strings)  # Returns N separate strings
+
 
 def cluster_macro_topics():
     """
@@ -146,12 +157,14 @@ def cluster_macro_topics():
 
     prompts = []
     for i, topic_string in enumerate(topic_strings, 1):
-        prompts.append(f"""
+        prompts.append(
+            f"""
 Please take the following topics and cluster them into a list of 10 topics. These topics should be short and concise,
 but not just limited to one or two words. Please return only the 10 topics, one on each line.
 
 {topic_string}
-""")
+"""
+        )
 
     responses = []
     for prompt in prompts:
@@ -159,15 +172,56 @@ but not just limited to one or two words. Please return only the 10 topics, one 
         responses.append(response)
     print(responses)
 
+
+import os
+from datasets import Dataset
+
+
+def create_hf_dataset_from_folders(base_folder="articles"):
+    """
+    Create a Hugging Face dataset from text documents stored in different folders.
+    """
+    all_data = []
+
+    # Traverse through each folder inside the "articles" directory
+    for topic_folder in os.listdir(base_folder):
+        topic_folder_path = os.path.join(base_folder, topic_folder)
+
+        if os.path.isdir(topic_folder_path):
+            # Read all text files inside the topic folder
+            for filename in os.listdir(topic_folder_path):
+                if filename.endswith(".txt"):
+                    article_path = os.path.join(topic_folder_path, filename)
+
+                    # Read the article content
+                    with open(article_path, "r", encoding="utf-8") as file:
+                        content = file.read()
+
+                    # Create an entry for each article (could include topic, filename, etc.)
+                    all_data.append(
+                        {
+                            "text": content,
+                            "topic": topic_folder,
+                            "article_filename": filename,
+                        }
+                    )
+
+    # Convert the data into a Hugging Face dataset
+    dataset = Dataset.from_dict(
+        {
+            "text": [entry["text"] for entry in all_data],
+            "topic": [entry["topic"] for entry in all_data],
+            "article_filename": [entry["article_filename"] for entry in all_data],
+        }
+    )
+
+    return dataset
+
+
 # Run only when executed directly
 if __name__ == "__main__":
     """
     Make prompt then give.
     """
-    # Get topics
-    target_length = 1500
-    topics = read_topics_into_n_strings("topics-pass-2.txt", 1)
-    topics_list = topics[0].split("\n")
-
-    # Generatic articles
-    generate_articles_for_topics(topics_list)
+    dataset = create_hf_dataset_from_folders()
+    dataset.push_to_hub("cpondoc/noisy-retrieval")
