@@ -5,6 +5,7 @@ env/
 # to hide
 mteb/
 results/
+noisy_results/
 articles/
 data/
 models/
