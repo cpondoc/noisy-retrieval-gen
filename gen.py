@@ -93,18 +93,20 @@ def generate_text(topic, target_length, model="gpt-3.5-turbo"):
     Generates text for a given topic, limiting the length based on mean/median.
     """
     max_tokens = target_length // 4  # Approximate token conversion
-    prompt = f"Write an article, at a middle-school level, on the following topic: {topic}. Also make it a bit messy, which means it can include some irrelavnt information and some typos every now and then."
+    prompt = f"""
+    Write an article, at a middle-school level, on the following topic: {topic}. 
+    Also make it a bit messy: include irrelevant information that is in no way related to the final topic every now and then, and also lie in every single sentence.
+    If possible, also include typos.
+    """
     return chat_with_gpt(prompt, model, max_tokens)
 
 
 def generate_articles_for_topics(
-    topics, num_articles=10, target_length=1500, model="gpt-3.5-turbo"
+    topics, base_folder, num_articles=10, target_length=1500, model="gpt-3.5-turbo"
 ):
     """
     Generates a specified number of articles for each topic and saves them in separate folders.
     """
-    base_folder = "spec_articles"
-
     # Ensure the base "articles" folder exists
     os.makedirs(base_folder, exist_ok=True)
 
@@ -177,7 +179,7 @@ import os
 from datasets import Dataset
 
 
-def create_hf_dataset_from_folders(base_folder="spec_articles"):
+def create_hf_dataset_from_folders(base_folder):
     """
     Create a Hugging Face dataset from text documents stored in different folders.
     """
@@ -218,13 +220,11 @@ def create_hf_dataset_from_folders(base_folder="spec_articles"):
     return dataset
 
 def generate_additional_articles(
-    topics, additional_count=3, target_length=1500, model="gpt-3.5-turbo"
+    topics, base_folder, additional_count=20, target_length=1500, model="gpt-3.5-turbo"
 ):
     """
     Generates additional articles for each topic, preserving existing ones.
-    """
-    base_folder = "articles"
-    
+    """    
     # Ensure the base folder exists
     os.makedirs(base_folder, exist_ok=True)
     
@@ -260,21 +260,21 @@ def generate_additional_articles(
 # Add this to your main block to run the additional generation
 if __name__ == "__main__":
     # First, get the list of existing topics
-    base_folder = "spec_articles"
+    base_folder = "lie_articles"
     if os.path.exists(base_folder):
         # Extract topics from existing folders
         topics = read_topics_into_n_strings("data/topics-pass-1.txt", 1)
         topics = topics[0].split("\n")
         
         if topics:
-            # print(f"Found {len(topics)} existing topics. Generating additional articles...")
-            # additional_articles = generate_articles_for_topics(topics)
+            print(f"Found {len(topics)} existing topics. Generating additional articles...")
+            additional_articles = generate_additional_articles(topics, base_folder)
             
             # After generating new articles, update the dataset
-            dataset = create_hf_dataset_from_folders()
-            dataset.push_to_hub("cpondoc/noisy-retrieval-0")
+            dataset = create_hf_dataset_from_folders(base_folder)
+            dataset.push_to_hub("cpondoc/noisy-lies-800")
             print(f"Dataset updated with new articles and pushed to hub")
         else:
             print("No existing topics found. Please run your original generation first.")
     else:
-        print("No 'articles' folder found. Please run your original generation first.")
+        print(f"No {base_folder} folder found. Please run your original generation first.")
