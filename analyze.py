@@ -90,7 +90,7 @@ def get_noisy_docs():
     """
     # Load data from HF
     dataset = load_dataset(
-        "cpondoc/noisy-retrieval",
+        "cpondoc/noisy-lies-800",
         ignore_verifications=True,
         keep_in_memory=True
     )
@@ -143,7 +143,7 @@ def save_mismatch_results(mismatch_results):
     Save examples of mismatch results to text file
     """
     # Define the folder to save text files
-    save_folder = "data/120-examples-general"
+    save_folder = "data/lie_noise/800-examples-general"
     os.makedirs(save_folder, exist_ok=True)  # Create the folder if it doesn't exist
 
     for result in mismatch_results:
@@ -175,7 +175,7 @@ if __name__ == "__main__":
 
     # Look at ground truth + a noisy run
     normal_ir = analyze_mteb_predictions("results/Snowflake/snowflake-arctic-embed-m/NFCorpus/NFCorpus_default_predictions.json")
-    noisy_ir = analyze_mteb_predictions("noisy_results/120-examples/Snowflake/snowflake-arctic-embed-m/NFCorpus/NFCorpus_default_predictions.json")
+    noisy_ir = analyze_mteb_predictions("noisy_results/gpt_lies/800-examples/Snowflake/snowflake-arctic-embed-m/NFCorpus/NFCorpus_default_predictions.json")
 
     # Most recent run
     mismatch_list = compare_mteb_predictions(normal_ir, noisy_ir)
