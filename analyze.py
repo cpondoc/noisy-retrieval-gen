@@ -39,6 +39,7 @@ def load_data():
 
     return corpus, queries, qfrels, docs
 
+
 def find_correct_answers(corpus, queries, qfrels):
     """
     Find correct answers for a retrieval benchmark
@@ -56,6 +57,7 @@ def find_correct_answers(corpus, queries, qfrels):
     best_matches["corpus_text"] = best_matches["corpus-id"].map(corpus_dict)
     return best_matches
 
+
 def analyze_mteb_predictions(file_path):
     """
     Look at result from MTEB run
@@ -69,10 +71,13 @@ def analyze_mteb_predictions(file_path):
     for query_id, docs in predictions.items():
         best_doc_id = max(docs, key=docs.get)  # Get corpus ID with highest score
         best_score = docs[best_doc_id]
-        pred_list.append({"query-id": query_id, "corpus-id": best_doc_id, "pred_score": best_score})
+        pred_list.append(
+            {"query-id": query_id, "corpus-id": best_doc_id, "pred_score": best_score}
+        )
 
     df_preds = pd.DataFrame(pred_list)
     return df_preds
+
 
 def compare_mteb_predictions(df1, df2):
     """
@@ -80,9 +85,16 @@ def compare_mteb_predictions(df1, df2):
     """
     # Merge, find difference, extract list
     df_comparison = df1.merge(df2, on="query-id", suffixes=("_1", "_2"))
-    mismatches = df_comparison[df_comparison["corpus-id_1"] != df_comparison["corpus-id_2"]]
-    mismatch_list = list(zip(mismatches["query-id"], mismatches["corpus-id_1"], mismatches["corpus-id_2"]))
+    mismatches = df_comparison[
+        df_comparison["corpus-id_1"] != df_comparison["corpus-id_2"]
+    ]
+    mismatch_list = list(
+        zip(
+            mismatches["query-id"], mismatches["corpus-id_1"], mismatches["corpus-id_2"]
+        )
+    )
     return mismatch_list
+
 
 def get_noisy_docs():
     """
@@ -90,26 +102,22 @@ def get_noisy_docs():
     """
     # Load data from HF
     dataset = load_dataset(
-        "cpondoc/noisy-lies-800",
-        ignore_verifications=True,
-        keep_in_memory=True
+        "cpondoc/noisy-lies-800", ignore_verifications=True, keep_in_memory=True
     )
     train_data = dataset["train"]
 
     # Convert dataset dictionary into list of dictionaries
     processed_data = []
     for i in range(len(train_data["text"])):  # Iterate through index positions
-        doc = {
-            "id": f"doc_{i}",
-            "text": train_data["text"][i]
-        }
+        doc = {"id": f"doc_{i}", "text": train_data["text"][i]}
         processed_data.append(doc)
 
     return processed_data
 
+
 def find_mismatched_text(mismatch_list, corpus, queries, noisy_corpus):
     """
-    Given a list of mismatched query and corpus ID tuples, retrieve the actual text 
+    Given a list of mismatched query and corpus ID tuples, retrieve the actual text
     from both clean and noisy corpora using a unified dictionary.
     """
     # Convert datasets to dictionaries for fast lookup
@@ -127,16 +135,19 @@ def find_mismatched_text(mismatch_list, corpus, queries, noisy_corpus):
         corpus_text_1 = corpus_dict.get(corpus_id_1, "Document not found")
         corpus_text_2 = corpus_dict.get(corpus_id_2, "Document not found")
 
-        mismatched_texts.append({
-            "query-id": query_id,
-            "query-text": query_text,
-            "corpus-id-1": corpus_id_1,
-            "corpus-text-1": corpus_text_1,
-            "corpus-id-2": corpus_id_2,
-            "corpus-text-2": corpus_text_2,
-        })
+        mismatched_texts.append(
+            {
+                "query-id": query_id,
+                "query-text": query_text,
+                "corpus-id-1": corpus_id_1,
+                "corpus-text-1": corpus_text_1,
+                "corpus-id-2": corpus_id_2,
+                "corpus-text-2": corpus_text_2,
+            }
+        )
 
     return mismatched_texts
+
 
 def save_mismatch_results(mismatch_results):
     """
@@ -151,19 +162,20 @@ def save_mismatch_results(mismatch_results):
         if result["corpus-id-2"].startswith("doc"):
             # Define the file path
             file_path = os.path.join(save_folder, f"{result['query-id']}.txt")
-            
+
             # Prepare the formatted text
             content = (
                 f"Query: {result['query-text']}\n\n"
                 f"Vanilla Retrieved ({result['corpus-id-1']}): {result['corpus-text-1']}\n\n"
                 f"Noisy Retrieved ({result['corpus-id-2']}): {result['corpus-text-2']}"
             )
-            
+
             # Write to file
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(content)
 
             print(f"Saved mismatch result to {file_path}")
+
 
 if __name__ == "__main__":
     """
@@ -174,13 +186,19 @@ if __name__ == "__main__":
     correct_answers = find_correct_answers(corpus, queries, qfrels)
 
     # Look at ground truth + a noisy run
-    normal_ir = analyze_mteb_predictions("results/Snowflake/snowflake-arctic-embed-m/NFCorpus/NFCorpus_default_predictions.json")
-    noisy_ir = analyze_mteb_predictions("noisy_results/gpt_lies/800-examples/Snowflake/snowflake-arctic-embed-m/NFCorpus/NFCorpus_default_predictions.json")
+    normal_ir = analyze_mteb_predictions(
+        "results/Snowflake/snowflake-arctic-embed-m/NFCorpus/NFCorpus_default_predictions.json"
+    )
+    noisy_ir = analyze_mteb_predictions(
+        "noisy_results/gpt_lies/800-examples/Snowflake/snowflake-arctic-embed-m/NFCorpus/NFCorpus_default_predictions.json"
+    )
 
     # Most recent run
     mismatch_list = compare_mteb_predictions(normal_ir, noisy_ir)
     noisy_corpus = get_noisy_docs()
-    mismatch_results = find_mismatched_text(mismatch_list, corpus, queries, noisy_corpus)
+    mismatch_results = find_mismatched_text(
+        mismatch_list, corpus, queries, noisy_corpus
+    )
 
     # Find statistics
     total_num = len(mismatch_results)
@@ -188,6 +206,6 @@ if __name__ == "__main__":
     for result in mismatch_results:
         num_noisy += int(result["corpus-id-2"].startswith("doc"))
     print(f"Percentage affected by noisy documents: {float(num_noisy / total_num)}")
-    
+
     # Analyze
     save_mismatch_results(mismatch_results)

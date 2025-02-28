@@ -1,6 +1,7 @@
 # needed
 env/
 .env
+.DS_Store
 
 # libs
 mteb/
