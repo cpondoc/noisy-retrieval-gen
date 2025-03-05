@@ -233,6 +233,6 @@ if __name__ == "__main__":
 
     # Read in URLs, iterate and check
     warc_urls = read_warc_list(WARC_LIST_PATH)
-    for warc_url in warc_urls[1:]:
+    for warc_url in warc_urls[9:]:
         warc_file = download_warc(f"https://data.commoncrawl.org/{warc_url}")
         extract_warc(warc_file, topics, topic_embeddings, topic_folders)
