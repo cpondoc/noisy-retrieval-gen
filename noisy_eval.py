@@ -13,5 +13,5 @@ evaluation.run(
     dual_encoder,
     eval_splits=["test"],
     save_predictions=True,
-    output_folder=f"noisy_results/noisy_cc/1116-examples/{BASE_MODEL}/{TASK}/",
+    output_folder=f"noisy_results/noisy_cc/2000-examples/{BASE_MODEL}/{TASK}/",
 )
