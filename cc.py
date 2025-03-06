@@ -1,3 +1,7 @@
+"""
+Sift through Common Crawl and find data that pertains to multiple sets of topics
+"""
+
 from langdetect import detect, detect_langs
 from langdetect.lang_detect_exception import LangDetectException
 import os
@@ -12,10 +16,24 @@ import re
 # Path to the file containing WARC URLs
 WARC_LIST_PATH = "data/common-crawl/warcs.txt"
 WARC_DOWNLOAD_DIR = "data/common-crawl/zip/"  # Directory for downloaded WARC files
-ARTICLES_DIR = "data/common-crawl/articles/"  # Base directory for saved articles
 
-# Path to the file containing topics
-TOPICS_FILE_PATH = "data/topics/manual-topics.txt"
+# Path to the files containing different topic sets with separate base directories
+TOPIC_SETS = [
+    {
+        "name": "fiqa",
+        "path": "data/FiQA-2018/topics/general.txt",
+        "articles_dir": "data/FiQA-2018/articles/",  # Separate base directory for set1
+    },
+    {
+        "name": "scidocs",
+        "path": "data/SCIDOCS/topics/general.txt",
+        "articles_dir": "data/SCIDOCS/articles/",  # Separate base directory for set2
+    },
+    # Add more topic sets as needed
+]
+
+# Minimum similarity threshold to consider an article as matching a topic
+SIMILARITY_THRESHOLD = 0.4
 
 
 def is_english(text, probability_threshold=0.9):
@@ -68,30 +86,57 @@ def read_topics(filepath: str):
     return topics
 
 
-def create_topic_folders(topics: list):
-    """Create a folder for each topic in the articles directory."""
-    for topic in topics:
-        # Create a valid folder name (replace spaces with underscores, remove special characters)
-        folder_name = re.sub(r"[^\w\s-]", "", topic).replace(" ", "_").lower()
-        folder_path = os.path.join(ARTICLES_DIR, folder_name)
-        os.makedirs(folder_path, exist_ok=True)
-        print(f"📁 Created/verified topic folder: {folder_path}")
+def create_topic_folders(topic_set_configs: list):
+    """Create folders for each topic in each topic set using their separate base directories."""
+    topic_folders = {}
+    topic_sets = {}
 
-    return {
-        topic: re.sub(r"[^\w\s-]", "", topic).replace(" ", "_").lower()
-        for topic in topics
-    }
+    for config in topic_set_configs:
+        set_name = config["name"]
+        topics = read_topics(config["path"])
+        base_dir = config["articles_dir"]
+
+        if not topics:
+            continue
+
+        topic_sets[set_name] = topics
+        topic_folders[set_name] = {}
+
+        # Create base directory for this topic set
+        os.makedirs(base_dir, exist_ok=True)
+        print(f"📁 Created/verified base directory: {base_dir}")
+
+        # Create a folder for each topic in this set
+        for topic in topics:
+            # Create a valid folder name
+            folder_name = re.sub(r"[^\w\s-]", "", topic).replace(" ", "_").lower()
+            folder_path = os.path.join(base_dir, folder_name)
+            os.makedirs(folder_path, exist_ok=True)
+            print(f"📁 Created/verified topic folder: {folder_path}")
+            topic_folders[set_name][topic] = {
+                "folder_name": folder_name,
+                "base_dir": base_dir,
+            }
+
+    return topic_sets, topic_folders
 
 
-def embed_topics(topics: list):
+def embed_topics(topic_sets: dict):
     """
-    Embed a bunch of topics using SentenceTransformer and return a mapping from
-    topics to their respective embeddings.
+    Embed topics from multiple sets using SentenceTransformer.
+    Returns a mapping from set names to {topic: embedding} dictionaries.
     """
     model = SentenceTransformer("sentence-transformers/all-MiniLM-L12-v2")
-    embeddings = model.encode(topics)
+    topic_embeddings = {}
 
-    return {topic: embedding.tolist() for topic, embedding in zip(topics, embeddings)}
+    for set_name, topics in topic_sets.items():
+        embeddings = model.encode(topics)
+        topic_embeddings[set_name] = {
+            topic: embedding.tolist() for topic, embedding in zip(topics, embeddings)
+        }
+        print(f"🧠 Embedded {len(topics)} topics for set '{set_name}'")
+
+    return topic_embeddings
 
 
 def ensure_directory_exists(filepath: str):
@@ -158,10 +203,24 @@ def create_safe_filename(url: str):
     return safe_name + ".txt"
 
 
+def find_best_topic_match(article_embedding, topic_embeddings_set):
+    """Find the best matching topic in a topic set."""
+    best_similarity = -1
+    best_topic = None
+
+    for topic, topic_embedding in topic_embeddings_set.items():
+        sim = compute_cosine_similarity(article_embedding, topic_embedding)
+        if sim > best_similarity:
+            best_similarity = sim
+            best_topic = topic
+
+    return best_topic, best_similarity
+
+
 def extract_warc(
-    filename: str, topics: list, topic_embeddings: dict, topic_folders: dict
+    filename: str, topic_sets: dict, topic_embeddings: dict, topic_folders: dict
 ):
-    """Extract URLs and raw text content from the WARC file using trafilatura."""
+    """Extract URLs and raw text content from the WARC file and match against multiple topic sets."""
     print(f"\n📖 Extracting content from {filename}...\n")
 
     # Initialize the model for article embeddings
@@ -173,50 +232,56 @@ def extract_warc(
                 url = record.rec_headers.get_header("WARC-Target-URI")
                 html_content = record.content_stream().read().decode(errors="ignore")
 
-                # Extract raw text using trafilatura, check for english
+                # Extract raw text using trafilatura, check for English
                 raw_text = trafilatura.extract(html_content)
-                if raw_text and is_english(raw_text)[0]:
-                    # Embed the article's raw text
-                    article_embedding = model.encode([raw_text])[0]
+                if not raw_text or not is_english(raw_text)[0]:
+                    continue
 
-                    # Find the most similar topic based on cosine similarity
-                    best_similarity = -1  # Initialize with a low similarity
-                    best_topic = None
+                # Embed the article's raw text
+                article_embedding = model.encode([raw_text])[0]
 
-                    for topic, topic_embedding in topic_embeddings.items():
-                        sim = compute_cosine_similarity(
-                            article_embedding, topic_embedding
-                        )
-                        if sim > best_similarity:
-                            best_similarity = sim
-                            best_topic = topic
+                # Check the article against each topic set
+                matches_found = False
 
-                    # Check for best similarity:
-                    if best_similarity >= 0.4:
+                for set_name, topic_embeddings_set in topic_embeddings.items():
+                    best_topic, best_similarity = find_best_topic_match(
+                        article_embedding, topic_embeddings_set
+                    )
+
+                    # Save if similarity is above threshold
+                    if best_similarity >= SIMILARITY_THRESHOLD:
+                        matches_found = True
                         print(f"🌐 URL: {url}")
                         print(
-                            f"📝 Extracted Text:\n{raw_text[:500]}..."
-                        )  # Print first 500 chars
+                            f"📝 Extracted Text:\n{raw_text[:300]}..."
+                        )  # First 300 chars
                         print(
-                            f"🏆 Best Topic: {best_topic} (Similarity: {best_similarity:.4f})"
+                            f"🏆 Set: {set_name}, Best Topic: {best_topic} (Similarity: {best_similarity:.4f})"
                         )
 
-                        # Save the content to the appropriate topic folder
-                        folder_name = topic_folders[best_topic]
+                        # Get topic folder info
+                        topic_info = topic_folders[set_name][best_topic]
+                        base_dir = topic_info["base_dir"]
+                        folder_name = topic_info["folder_name"]
+
+                        # Create the file path in the appropriate directory
                         file_name = create_safe_filename(url)
-                        file_path = os.path.join(ARTICLES_DIR, folder_name, file_name)
+                        file_path = os.path.join(base_dir, folder_name, file_name)
 
                         # Only save if the file doesn't exist
                         if not os.path.exists(file_path):
                             with open(file_path, "w", encoding="utf-8") as f:
                                 f.write(f"URL: {url}\n\n")
+                                f.write(f"TOPIC SET: {set_name}\n")
+                                f.write(f"TOPIC: {best_topic}\n")
                                 f.write(f"SIMILARITY: {best_similarity:.4f}\n\n")
                                 f.write(raw_text)
                             print(f"💾 Saved article to {file_path}")
                         else:
                             print(f"⏭️ File already exists: {file_path}")
 
-                        print("-" * 80)
+                if matches_found:
+                    print("-" * 80)
 
     # Delete the .gz file after extraction
     os.remove(filename)
@@ -224,20 +289,21 @@ def extract_warc(
 
 
 if __name__ == "__main__":
-    """
-    Embed all of the topics, then return
-    """
-    # Read topics
-    topics = read_topics(TOPICS_FILE_PATH)
+    # Create directories
+    os.makedirs(WARC_DOWNLOAD_DIR, exist_ok=True)
 
-    # Create a folder for each topic
-    topic_folders = create_topic_folders(topics)
+    # Create folder structure for topics and get topic sets
+    topic_sets, topic_folders = create_topic_folders(TOPIC_SETS)
 
-    # Embed topics
-    topic_embeddings = embed_topics(topics)
+    if not topic_sets:
+        print("❌ No valid topic sets found. Exiting.")
+        exit(1)
+
+    # Embed all topics from all sets
+    topic_embeddings = embed_topics(topic_sets)
 
     # Read in URLs, iterate and check
     warc_urls = read_warc_list(WARC_LIST_PATH)
-    for warc_url in warc_urls[9:]:
+    for warc_url in warc_urls[10:]:  # Skip the first 10 as in original code
         warc_file = download_warc(f"https://data.commoncrawl.org/{warc_url}")
-        extract_warc(warc_file, topics, topic_embeddings, topic_folders)
+        extract_warc(warc_file, topic_sets, topic_embeddings, topic_folders)

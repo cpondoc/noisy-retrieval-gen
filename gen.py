@@ -79,7 +79,12 @@ def chunk_text(text, max_tokens=8000, encoding_name="cl100k_base"):
     return chunks
 
 
-def generate_topics(queries_str, max_tokens=100, output_dir="data/FiQA-2018/topics"):
+def generate_topics(
+    queries_str,
+    model="gpt-3.5-turbo-0125",
+    max_tokens=100,
+    output_dir="data/FiQA-2018/topics",
+):
     """
     Use an LLM to generate topics while handling large inputs.
     Saves each response to a text file in the specified directory.
@@ -126,9 +131,11 @@ if __name__ == "__main__":
     Run all main functions
     """
     # Load in the data, save the queries
-    corpus, queries, qfrels, docs = load_data("mteb/fiqa")
-    write_queries(queries, "data/FiQA-2018")
+    corpus, queries, qfrels, docs = load_data("mteb/scidocs")
+    write_queries(queries, "data/SCIDOCS")
 
     # Generate topics
-    queries_str = read_queries("data/FiQA-2018")
-    topics = generate_topics(TOPICS_PROMPT, queries_str)
+    queries_str = read_queries("data/SCIDOCS")
+    topics = generate_topics(
+        TOPICS_PROMPT, queries_str, output_dir="data/SCIDOCS/topics"
+    )
