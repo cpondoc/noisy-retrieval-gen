@@ -304,6 +304,6 @@ if __name__ == "__main__":
 
     # Read in URLs, iterate and check
     warc_urls = read_warc_list(WARC_LIST_PATH)
-    for warc_url in warc_urls[10:]:  # Skip the first 10 as in original code
+    for warc_url in warc_urls[15:]:
         warc_file = download_warc(f"https://data.commoncrawl.org/{warc_url}")
         extract_warc(warc_file, topic_sets, topic_embeddings, topic_folders)
