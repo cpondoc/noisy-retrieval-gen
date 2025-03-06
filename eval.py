@@ -1,13 +1,16 @@
+"""
+Separate script for running model on non-edited benchmark
+"""
 from mteb import MTEB
 from sentence_transformers import SentenceTransformer
 
 # Define model and task
 BASE_MODEL = "Snowflake/snowflake-arctic-embed-m"
-TASK = "NFCorpus"  # Set NFCorpus as the evaluation task
+TASK = "FiQA2018"
 
 dual_encoder = SentenceTransformer(BASE_MODEL)
 
-# Run evaluation for NFCorpus
+# Run evaluation for task
 evaluation = MTEB(tasks=[TASK], verbosity=1)
 evaluation.run(
     dual_encoder,

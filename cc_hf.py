@@ -132,35 +132,34 @@ def stratified_sample(data, topic_counts, sample_size):
 
 
 def main():
-    # Base directory path
-    base_dir = "data/common-crawl/articles"
-
-    # Number of articles to sample
-    sample_size = 5000
+    """
+    Create all of the Hugging Face datasets.
+    """
+    # Base directory path, sample sizes
+    base_dir = "data/SCIDOCS/articles"
+    sample_sizes = [250, 500, 750, 1000, 1250, 1470]
 
     # Process and sample text files
-    data = process_text_files(base_dir)
+    for sample_size in sample_sizes:
+        data = process_text_files(base_dir, sample_size)
+        df = pd.DataFrame(data)
 
-    # Convert to pandas DataFrame
-    df = pd.DataFrame(data)
+        # Print topic distribution
+        topic_distribution = df["topic"].value_counts()
+        print("Topic Distribution:")
+        for topic, count in topic_distribution.items():
+            print(f"  {topic}: {count} articles ({count/len(df)*100:.2f}%)")
 
-    # Print topic distribution
-    topic_distribution = df["topic"].value_counts()
-    print("Topic Distribution:")
-    for topic, count in topic_distribution.items():
-        print(f"  {topic}: {count} articles ({count/len(df)*100:.2f}%)")
+        # Save to Hugging Face
+        dataset = Dataset.from_pandas(df)
+        dataset_name = f"cpondoc/noisy-scidocs-{sample_size}"
+        dataset.push_to_hub(dataset_name)
 
-    # Convert to Hugging Face Dataset
-    dataset = Dataset.from_pandas(df)
-
-    # Save to Hugging Face
-    dataset_name = "cpondoc/noisy-nf-35"
-    dataset.push_to_hub(dataset_name)
-
-    print(
-        f"\nSuccessfully processed {len(data)} articles across {len(set(df['topic']))} topics."
-    )
-    print(f"Dataset uploaded to Hugging Face as {dataset_name}")
+        # Success message
+        print( 
+            f"\nSuccessfully processed {len(data)} articles across {len(set(df['topic']))} topics."
+        )
+        print(f"Dataset uploaded to Hugging Face as {dataset_name}")
 
 
 if __name__ == "__main__":
