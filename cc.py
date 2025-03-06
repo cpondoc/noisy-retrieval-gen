@@ -21,35 +21,35 @@ TOPICS_FILE_PATH = "data/topics/manual-topics.txt"
 def is_english(text, probability_threshold=0.9):
     """
     Checks if the provided text is in English.
-    
+
     Args:
         text (str): The text to analyze
         probability_threshold (float): Minimum probability to consider text as English (0.0 to 1.0)
-        
+
     Returns:
         tuple: (is_english (bool), probability (float), detected_language (str))
     """
     if not text or len(text.strip()) == 0:
         return False, 0.0, "unknown"
-    
+
     try:
         # Get language probabilities
         language_probs = detect_langs(text)
-        
+
         # Check if English is the top language
-        if language_probs and language_probs[0].lang == 'en':
+        if language_probs and language_probs[0].lang == "en":
             probability = language_probs[0].prob
-            return probability >= probability_threshold, probability, 'en'
+            return probability >= probability_threshold, probability, "en"
         else:
             # Find English in the results if it exists
             for lang_prob in language_probs:
-                if lang_prob.lang == 'en':
-                    return lang_prob.prob >= probability_threshold, lang_prob.prob, 'en'
-            
+                if lang_prob.lang == "en":
+                    return lang_prob.prob >= probability_threshold, lang_prob.prob, "en"
+
             # English not found, return the top language
             top_lang = language_probs[0].lang
             return False, 0.0, top_lang
-            
+
     except LangDetectException as e:
         # Handle errors (like empty text)
         return False, 0.0, f"error: {str(e)}"
@@ -72,12 +72,15 @@ def create_topic_folders(topics: list):
     """Create a folder for each topic in the articles directory."""
     for topic in topics:
         # Create a valid folder name (replace spaces with underscores, remove special characters)
-        folder_name = re.sub(r'[^\w\s-]', '', topic).replace(' ', '_').lower()
+        folder_name = re.sub(r"[^\w\s-]", "", topic).replace(" ", "_").lower()
         folder_path = os.path.join(ARTICLES_DIR, folder_name)
         os.makedirs(folder_path, exist_ok=True)
         print(f"📁 Created/verified topic folder: {folder_path}")
-    
-    return {topic: re.sub(r'[^\w\s-]', '', topic).replace(' ', '_').lower() for topic in topics}
+
+    return {
+        topic: re.sub(r"[^\w\s-]", "", topic).replace(" ", "_").lower()
+        for topic in topics
+    }
 
 
 def embed_topics(topics: list):
@@ -147,15 +150,17 @@ def compute_cosine_similarity(embedding1, embedding2):
 def create_safe_filename(url: str):
     """Create a safe filename from URL."""
     # Remove protocol and special characters
-    safe_name = re.sub(r'^https?://', '', url)
-    safe_name = re.sub(r'[^\w\s-]', '_', safe_name)
+    safe_name = re.sub(r"^https?://", "", url)
+    safe_name = re.sub(r"[^\w\s-]", "_", safe_name)
     # Limit filename length
     if len(safe_name) > 100:
         safe_name = safe_name[:100]
     return safe_name + ".txt"
 
 
-def extract_warc(filename: str, topics: list, topic_embeddings: dict, topic_folders: dict):
+def extract_warc(
+    filename: str, topics: list, topic_embeddings: dict, topic_folders: dict
+):
     """Extract URLs and raw text content from the WARC file using trafilatura."""
     print(f"\n📖 Extracting content from {filename}...\n")
 
@@ -170,9 +175,7 @@ def extract_warc(filename: str, topics: list, topic_embeddings: dict, topic_fold
 
                 # Extract raw text using trafilatura, check for english
                 raw_text = trafilatura.extract(html_content)
-                if raw_text and is_english(
-                    raw_text
-                )[0]:
+                if raw_text and is_english(raw_text)[0]:
                     # Embed the article's raw text
                     article_embedding = model.encode([raw_text])[0]
 
@@ -187,20 +190,22 @@ def extract_warc(filename: str, topics: list, topic_embeddings: dict, topic_fold
                         if sim > best_similarity:
                             best_similarity = sim
                             best_topic = topic
-                    
+
                     # Check for best similarity:
                     if best_similarity >= 0.4:
                         print(f"🌐 URL: {url}")
-                        print(f"📝 Extracted Text:\n{raw_text[:500]}...")  # Print first 500 chars
+                        print(
+                            f"📝 Extracted Text:\n{raw_text[:500]}..."
+                        )  # Print first 500 chars
                         print(
                             f"🏆 Best Topic: {best_topic} (Similarity: {best_similarity:.4f})"
                         )
-                        
+
                         # Save the content to the appropriate topic folder
                         folder_name = topic_folders[best_topic]
                         file_name = create_safe_filename(url)
                         file_path = os.path.join(ARTICLES_DIR, folder_name, file_name)
-                        
+
                         # Only save if the file doesn't exist
                         if not os.path.exists(file_path):
                             with open(file_path, "w", encoding="utf-8") as f:
@@ -210,7 +215,7 @@ def extract_warc(filename: str, topics: list, topic_embeddings: dict, topic_fold
                             print(f"💾 Saved article to {file_path}")
                         else:
                             print(f"⏭️ File already exists: {file_path}")
-                        
+
                         print("-" * 80)
 
     # Delete the .gz file after extraction
@@ -224,10 +229,10 @@ if __name__ == "__main__":
     """
     # Read topics
     topics = read_topics(TOPICS_FILE_PATH)
-    
+
     # Create a folder for each topic
     topic_folders = create_topic_folders(topics)
-    
+
     # Embed topics
     topic_embeddings = embed_topics(topics)
 

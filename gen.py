@@ -8,273 +8,127 @@ from datasets import Dataset, DatasetDict, load_dataset
 import os
 from dotenv import load_dotenv
 from tqdm import tqdm
+import tiktoken
 
 # Load environment variables from .env file
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
+TOPICS_PROMPT = f"""
+Please take the following topics and cluster them into a list of 10-15 topics. These topics should be short and concise,
+but not just limited to one or two words. Please return only the 10-15 topics, one on each line.
 
-def calculate_text_stats(texts):
-    # Get the length of each text
-    lengths = np.array([len(text) for text in texts])
-
-    # Calculate mean, median, and lengths using numpy
-    mean_length = np.mean(lengths)
-    median_length = np.median(lengths)
-
-    # Return the results
-    return {
-        "mean_length": mean_length,
-        "median_length": median_length,
-        "lengths": lengths,
-        "total_texts": len(texts),
-    }
+Topics:
+"""
 
 
-def load_data():
+def read_queries(file_path: str) -> str:
+    """
+    Reads a text file and returns its contents as a single string with each line separated by a newline.
+    """
+    with open(f"{file_path}/queries.txt", "r", encoding="utf-8") as file:
+        return "".join(file.readlines())
+
+
+def load_data(dataset_name: str):
     """
     Load in NFCorpus corpus, queries, and qfrels
     """
     # Load in corpus
-    new_data = load_dataset(
-        "mteb/nfcorpus",
-        "corpus",
-    )
-    corpus = new_data["corpus"]
+    corpus = load_dataset(dataset_name, "corpus")
+    corpus = corpus["corpus"]
 
     docs = []
     for text in corpus["text"]:
         docs.append(text)
 
     # Load in queries
-    new_data = load_dataset(
-        "mteb/nfcorpus",
+    queries = load_dataset(
+        dataset_name,
         "queries",
     )
-    queries = new_data["queries"]
+    queries = queries["queries"]
 
     # Load in qfrels
-    last_data = load_dataset("mteb/nfcorpus")
-    qfrels = last_data["test"]
+    qfrels = load_dataset(dataset_name)
+    qfrels = qfrels["test"]
 
     return corpus, queries, qfrels, docs
 
 
-def write_queries():
+def write_queries(queries, file_path):
     """
     Write to a separate text file
     """
-    # Load in queries
-    dataset = load_dataset("mteb/nfcorpus", "queries")
-    queries = dataset["queries"]
-
-    # Write queries to a text file
-    with open("queries.txt", "w", encoding="utf-8") as file:
+    with open(f"{file_path}/queries.txt", "w", encoding="utf-8") as file:
         for query in queries["text"]:  # Assuming queries have a "text" field
             file.write(query + "\n")
 
 
-def chat_with_gpt(prompt, model="gpt-3.5-turbo", max_tokens=100):
+def chunk_text(text, max_tokens=8000, encoding_name="cl100k_base"):
+    """Splits text into chunks that fit within the token limit of the specified encoding."""
+    encoding = tiktoken.get_encoding(encoding_name)  # Explicitly get the tokenizer
+    tokens = encoding.encode(text)
+
+    chunks = []
+    for i in range(0, len(tokens), max_tokens):
+        chunk = encoding.decode(tokens[i : i + max_tokens])
+        chunks.append(chunk)
+
+    return chunks
+
+
+def generate_topics(queries_str, max_tokens=100, output_dir="data/FiQA-2018/topics"):
     """
-    ChatGPT wrapper baby
+    Use an LLM to generate topics while handling large inputs.
+    Saves each response to a text file in the specified directory.
     """
-    response = client.chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=max_tokens,
-        temperature=1.1,
+    # Ensure the output directory exists
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Use the correct tokenizer based on model
+    encoding_name = (
+        "cl100k_base" if "gpt-4" in model or "gpt-3.5" in model else "p50k_base"
     )
-    return response.choices[0].message.content
-
-
-def generate_text(topic, target_length, model="gpt-3.5-turbo"):
-    """
-    Generates text for a given topic, limiting the length based on mean/median.
-    """
-    max_tokens = target_length // 4  # Approximate token conversion
-    prompt = f"""
-    Write an article, at a middle-school level, on the following topic: {topic}. 
-    Also make it a bit messy: include irrelevant information that is in no way related to the final topic every now and then, and also lie in every single sentence.
-    If possible, also include typos.
-    """
-    return chat_with_gpt(prompt, model, max_tokens)
-
-
-def generate_articles_for_topics(
-    topics, base_folder, num_articles=10, target_length=1500, model="gpt-3.5-turbo"
-):
-    """
-    Generates a specified number of articles for each topic and saves them in separate folders.
-    """
-    # Ensure the base "articles" folder exists
-    os.makedirs(base_folder, exist_ok=True)
-
-    articles = {}
-
-    for topic in tqdm(topics):
-        # Create a folder for each topic, replacing spaces with underscores for safety
-        topic_folder = os.path.join(base_folder, topic.replace(" ", "_"))
-        os.makedirs(topic_folder, exist_ok=True)
-
-        topic_articles = []
-
-        for i in range(num_articles):
-            article = generate_text(topic, target_length, model)
-
-            # Save each article as a separate text file
-            article_filename = os.path.join(topic_folder, f"article_{i+1}.txt")
-            with open(article_filename, "w", encoding="utf-8") as f:
-                f.write(article)
-
-            topic_articles.append(article)
-
-        articles[topic] = topic_articles
-
-    return articles
-
-
-def read_topics_into_n_strings(file_path, n):
-    """
-    Reads a text file and splits its contents into `n` separate strings.
-    """
-    with open(file_path, "r", encoding="utf-8") as file:
-        lines = [
-            line.strip() for line in file.readlines() if line.strip()
-        ]  # Remove empty lines
-
-    # Split lines into N parts as evenly as possible
-    split_strings = ["\n".join(lines[i::n]) for i in range(n)]
-
-    return tuple(split_strings)  # Returns N separate strings
-
-
-def cluster_macro_topics():
-    """
-    Return responses for macro topics
-    """
-    file_path = "queries.txt"  # Replace with your actual file path
-    num_strings = 3  # Change this to however many separate strings you want
-    topic_strings = read_topics_into_n_strings(file_path, num_strings)
-
-    prompts = []
-    for i, topic_string in enumerate(topic_strings, 1):
-        prompts.append(
-            f"""
-Please take the following topics and cluster them into a list of 10 topics. These topics should be short and concise,
-but not just limited to one or two words. Please return only the 10 topics, one on each line.
-
-{topic_string}
-"""
-        )
+    chunks = chunk_text(queries_str, max_tokens=8000, encoding_name=encoding_name)
 
     responses = []
-    for prompt in prompts:
-        response = chat_with_gpt(prompt)
-        responses.append(response)
-    print(responses)
 
+    print(f"Saving responses to: {output_dir}")  # Debugging print
 
-import os
-from datasets import Dataset
+    for i, chunk in enumerate(chunks):
+        try:
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo-0125",
+                messages=[{"role": "user", "content": f"{TOPICS_PROMPT}\n{chunk}"}],
+                max_tokens=max_tokens,
+                temperature=1.1,
+            )
+            response_text = response.choices[0].message.content
+            responses.append(response_text)
 
+            # Save each response to a separate text file
+            file_path = os.path.join(output_dir, f"response_{i+1}.txt")
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(response_text)
 
-def create_hf_dataset_from_folders(base_folder):
-    """
-    Create a Hugging Face dataset from text documents stored in different folders.
-    """
-    all_data = []
+            print(f"Saved: {file_path}")  # Debugging print
+        except Exception as e:
+            print(f"Error in processing chunk {i+1}: {e}")
 
-    # Traverse through each folder inside the "articles" directory
-    for topic_folder in os.listdir(base_folder):
-        topic_folder_path = os.path.join(base_folder, topic_folder)
+    return responses  # Returns a list of responses
 
-        if os.path.isdir(topic_folder_path):
-            # Read all text files inside the topic folder
-            for filename in os.listdir(topic_folder_path):
-                if filename.endswith(".txt"):
-                    article_path = os.path.join(topic_folder_path, filename)
-
-                    # Read the article content
-                    with open(article_path, "r", encoding="utf-8") as file:
-                        content = file.read()
-
-                    # Create an entry for each article (could include topic, filename, etc.)
-                    all_data.append(
-                        {
-                            "text": content,
-                            "topic": topic_folder,
-                            "article_filename": filename,
-                        }
-                    )
-
-    # Convert the data into a Hugging Face dataset
-    dataset = Dataset.from_dict(
-        {
-            "text": [entry["text"] for entry in all_data],
-            "topic": [entry["topic"] for entry in all_data],
-            "article_filename": [entry["article_filename"] for entry in all_data],
-        }
-    )
-
-    return dataset
-
-def generate_additional_articles(
-    topics, base_folder, additional_count=20, target_length=1500, model="gpt-3.5-turbo"
-):
-    """
-    Generates additional articles for each topic, preserving existing ones.
-    """    
-    # Ensure the base folder exists
-    os.makedirs(base_folder, exist_ok=True)
-    
-    new_articles = {}
-    
-    for topic in tqdm(topics):
-        # Create folder path (same as in original function)
-        topic_folder = os.path.join(base_folder, topic.replace(" ", "_"))
-        os.makedirs(topic_folder, exist_ok=True)
-        
-        # Count existing articles to determine starting index for new ones
-        existing_articles = [f for f in os.listdir(topic_folder) if f.startswith("article_") and f.endswith(".txt")]
-        start_index = len(existing_articles) + 1
-        
-        topic_articles = []
-        
-        # Generate the additional articles
-        for i in range(additional_count):
-            article = generate_text(topic, target_length, model)
-            
-            # Use incremented index for new articles
-            article_filename = os.path.join(topic_folder, f"article_{start_index + i}.txt")
-            with open(article_filename, "w", encoding="utf-8") as f:
-                f.write(article)
-            
-            topic_articles.append(article)
-            
-        new_articles[topic] = topic_articles
-        print(f"Added {additional_count} new articles for topic: {topic}")
-    
-    return new_articles
 
 # Add this to your main block to run the additional generation
 if __name__ == "__main__":
-    # First, get the list of existing topics
-    base_folder = "lie_articles"
-    if os.path.exists(base_folder):
-        # Extract topics from existing folders
-        topics = read_topics_into_n_strings("data/topics-pass-1.txt", 1)
-        topics = topics[0].split("\n")
-        
-        if topics:
-            print(f"Found {len(topics)} existing topics. Generating additional articles...")
-            additional_articles = generate_additional_articles(topics, base_folder)
-            
-            # After generating new articles, update the dataset
-            dataset = create_hf_dataset_from_folders(base_folder)
-            dataset.push_to_hub("cpondoc/noisy-lies-800")
-            print(f"Dataset updated with new articles and pushed to hub")
-        else:
-            print("No existing topics found. Please run your original generation first.")
-    else:
-        print(f"No {base_folder} folder found. Please run your original generation first.")
+    """
+    Run all main functions
+    """
+    # Load in the data, save the queries
+    corpus, queries, qfrels, docs = load_data("mteb/fiqa")
+    write_queries(queries, "data/FiQA-2018")
+
+    # Generate topics
+    queries_str = read_queries("data/FiQA-2018")
+    topics = generate_topics(TOPICS_PROMPT, queries_str)
