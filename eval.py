@@ -1,12 +1,13 @@
 """
 Separate script for running model on non-edited benchmark
 """
+
 from mteb import MTEB
 from sentence_transformers import SentenceTransformer
 
 # Define model and task
 BASE_MODEL = "Snowflake/snowflake-arctic-embed-m"
-TASK = "FiQA2018"
+TASK = "SCIDOCS"
 
 dual_encoder = SentenceTransformer(BASE_MODEL)
 

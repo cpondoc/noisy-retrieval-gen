@@ -156,7 +156,7 @@ def main():
         dataset.push_to_hub(dataset_name)
 
         # Success message
-        print( 
+        print(
             f"\nSuccessfully processed {len(data)} articles across {len(set(df['topic']))} topics."
         )
         print(f"Dataset uploaded to Hugging Face as {dataset_name}")
