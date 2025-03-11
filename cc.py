@@ -20,15 +20,20 @@ WARC_DOWNLOAD_DIR = "data/common-crawl/zip/"  # Directory for downloaded WARC fi
 # Path to the files containing different topic sets with separate base directories
 TOPIC_SETS = [
     {
-        "name": "fiqa",
-        "path": "data/FiQA-2018/topics/general.txt",
-        "articles_dir": "data/FiQA-2018/articles/",  # Separate base directory for set1
+        "name": "nfcorpus",
+        "path": "data/NFCorpus/topics/manual-topics.txt",
+        "articles_dir": "data/NFCorpus/articles/",  # Separate base directory for set1
     },
-    {
-        "name": "scidocs",
-        "path": "data/SCIDOCS/topics/general.txt",
-        "articles_dir": "data/SCIDOCS/articles/",  # Separate base directory for set2
-    },
+    # {
+    #     "name": "fiqa",
+    #     "path": "data/FiQA-2018/topics/general.txt",
+    #     "articles_dir": "data/FiQA-2018/articles/",  # Separate base directory for set1
+    # },
+    # {
+    #     "name": "scidocs",
+    #     "path": "data/SCIDOCS/topics/general.txt",
+    #     "articles_dir": "data/SCIDOCS/articles/",  # Separate base directory for set2
+    # },
     # Add more topic sets as needed
 ]
 
@@ -304,6 +309,6 @@ if __name__ == "__main__":
 
     # Read in URLs, iterate and check
     warc_urls = read_warc_list(WARC_LIST_PATH)
-    for warc_url in warc_urls[15:]:
+    for warc_url in warc_urls[50:]:
         warc_file = download_warc(f"https://data.commoncrawl.org/{warc_url}")
         extract_warc(warc_file, topic_sets, topic_embeddings, topic_folders)

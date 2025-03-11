@@ -132,10 +132,10 @@ if __name__ == "__main__":
     """
     # Load in the data, save the queries
     corpus, queries, qfrels, docs = load_data("mteb/nfcorpus")
-    write_queries(queries, "data/NFCorpus")
+    # write_queries(queries, "data/NFCorpus")
 
     # # Generate topics
-    # queries_str = read_queries("data/SCIDOCS")
+    # queries_str = read_queries("data/NFCorpus")
     # topics = generate_topics(
     #     TOPICS_PROMPT, queries_str, output_dir="data/SCIDOCS/topics"
     # )

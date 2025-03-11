@@ -13,11 +13,12 @@ import json
 
 def load_data():
     """
-    Load in NFCorpus corpus, queries, and qfrels
+    Load in benchmark corpus, queries, and qfrels
     """
     # Load in corpus
+    benchmark = "scidocs"
     new_data = load_dataset(
-        "mteb/nfcorpus",
+        f"mteb/{benchmark}",
         "corpus",
     )
     corpus = new_data["corpus"]
@@ -28,13 +29,13 @@ def load_data():
 
     # Load in queries
     new_data = load_dataset(
-        "mteb/nfcorpus",
+        f"mteb/{benchmark}",
         "queries",
     )
     queries = new_data["queries"]
 
     # Load in qfrels
-    last_data = load_dataset("mteb/nfcorpus")
+    last_data = load_dataset(f"mteb/{benchmark}")
     qfrels = last_data["test"]
 
     return corpus, queries, qfrels, docs
@@ -102,7 +103,7 @@ def get_noisy_docs():
     """
     # Load data from HF
     dataset = load_dataset(
-        "cpondoc/noisy-cc-227", ignore_verifications=True, keep_in_memory=True
+        "cpondoc/noisy-fiqa-3185", ignore_verifications=True, keep_in_memory=True
     )
     train_data = dataset["train"]
 
@@ -154,7 +155,7 @@ def save_mismatch_results(mismatch_results):
     Save examples of mismatch results to text file
     """
     # Define the folder to save text files
-    save_folder = "data/cc_noise/1116-examples-general"
+    save_folder = "data/analysis/SCIDOCS/1470"
     os.makedirs(save_folder, exist_ok=True)  # Create the folder if it doesn't exist
 
     for result in mismatch_results:
@@ -187,10 +188,10 @@ if __name__ == "__main__":
 
     # Look at ground truth + a noisy run
     normal_ir = analyze_mteb_predictions(
-        "results/Snowflake/snowflake-arctic-embed-m/NFCorpus/NFCorpus_default_predictions.json"
+        "results/Snowflake/snowflake-arctic-embed-m/SCIDOCS/SCIDOCS_default_predictions.json"
     )
     noisy_ir = analyze_mteb_predictions(
-        "noisy_results/noisy_cc/1116-examples/Snowflake/snowflake-arctic-embed-m/NFCorpus/NFCorpus_default_predictions.json"
+        "noisy_results/no-rerank/SCIDOCS/1470-examples/Snowflake/snowflake-arctic-embed-m/SCIDOCS/SCIDOCS_default_predictions.json"
     )
 
     # Most recent run
