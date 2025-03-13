@@ -8,7 +8,7 @@ from sentence_transformers import SentenceTransformer
 
 # Define model and task
 BASE_MODEL = "Snowflake/snowflake-arctic-embed-m"
-TASK = "SCIDOCS"
+TASK = "NFCorpus"
 
 # Move model to MPS
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
@@ -20,5 +20,5 @@ evaluation.run(
     dual_encoder,
     eval_splits=["test"],
     save_predictions=True,
-    output_folder=f"noisy_results/test/{TASK}/1470-examples/{BASE_MODEL}/{TASK}/",
+    output_folder=f"noisy_results/no-rerank/{TASK}/10000-examples/{BASE_MODEL}/{TASK}/",
 )

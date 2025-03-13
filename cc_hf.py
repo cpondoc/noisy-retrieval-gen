@@ -136,8 +136,8 @@ def main():
     Create all of the Hugging Face datasets.
     """
     # Base directory path, sample sizes
-    base_dir = "data/SCIDOCS/articles"
-    sample_sizes = [250, 500, 750, 1000, 1250, 1470]
+    base_dir = "data/NFCorpus/articles"
+    sample_sizes = [6000, 7000, 8000, 9000, 10000, 10771]
 
     # Process and sample text files
     for sample_size in sample_sizes:
@@ -152,7 +152,7 @@ def main():
 
         # Save to Hugging Face
         dataset = Dataset.from_pandas(df)
-        dataset_name = f"cpondoc/noisy-scidocs-{sample_size}"
+        dataset_name = f"cpondoc/noisy-nf-{sample_size}"
         dataset.push_to_hub(dataset_name)
 
         # Success message
