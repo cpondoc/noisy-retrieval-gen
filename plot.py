@@ -62,8 +62,8 @@ accuracy_fineweb_0999 = [
 ]
 
 # New dataset
-new_data_examples = [250, 500, 1116, 2000, 3000, 4000]
-new_data_accuracy = [0.35723, 0.35085, 0.33265, 0.32108, 0.31172, 0.30606]
+new_data_examples = [250, 500, 1116, 2000, 3000, 4000, 5000]
+new_data_accuracy = [0.35723, 0.35085, 0.33265, 0.32108, 0.31172, 0.30606, 0.29941]
 
 # Create the plot
 plt.figure(figsize=(12, 7))
