@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-# Combined data points
+# Full list of example counts
 examples = [0, 250, 500, 1116, 2000, 3000, 4000, 5000, 5663, 6000, 7000, 8000, 9000, 10000, 10771]
 
 # Vanilla Embedding Model data
@@ -61,6 +61,10 @@ accuracy_fineweb_0999 = [
     0.29084,
 ]
 
+# New dataset
+new_data_examples = [250, 500, 1116, 2000, 3000, 4000]
+new_data_accuracy = [0.35723, 0.35085, 0.33265, 0.32108, 0.31172, 0.30606]
+
 # Create the plot
 plt.figure(figsize=(12, 7))
 
@@ -100,6 +104,18 @@ plt.plot(
     label="FineWeb-Edu Reranking (a=0.999)"
 )
 
+# Plot new data
+plt.plot(
+    new_data_examples,
+    new_data_accuracy,
+    marker="d",
+    linestyle="-",
+    color="purple",
+    linewidth=2,
+    markersize=8,
+    label="NVIDIA Domain Classifier (a=0.99)"
+)
+
 # Add title and labels with increased font size
 plt.title("NFCorpus Accuracy with Noisy Examples", fontsize=16, fontweight="bold")
 plt.xlabel("Number of Noisy Examples", fontsize=14)
@@ -114,16 +130,12 @@ plt.legend(fontsize=12, loc="best", framealpha=0.9)
 # Customize tick parameters
 plt.tick_params(axis="both", which="major", labelsize=12)
 
-# Add data points annotation for all three series (optional, may get crowded)
-# Removing the annotations as they may make the plot too crowded with three datasets
-# Uncomment if you still want annotations
-
 # Set appropriate y-axis limits to better visualize all series
 plt.ylim(0.28, 0.38)
 
 # Save the figure
 plt.tight_layout()
-plt.savefig("figures/NFCorpus/comparison_three_models.png", dpi=300)
+plt.savefig("figures/NFCorpus/comparison_all_models.png", dpi=300)
 
 # Show the plot
 plt.show()
