@@ -31,7 +31,11 @@ for quality_p in [0.99]:
                 dual_encoder,
                 eval_splits=eval_splits,
                 save_predictions=True,
+<<<<<<< HEAD
                 output_folder="noisy_results/rerank-results/5000/" + value + "/" + str(quality_p) + "/",
+=======
+                output_folder="noisy_results/test/10771/" + value + "/" + str(quality_p) + "/",
+>>>>>>> 9c378c46d03497c729393f53977088348108d6f5
                 quality_p=quality_p,
                 quality_classifier=key,
                 classifier_normalization="softmax_entropy",
