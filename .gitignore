@@ -9,6 +9,7 @@ mteb/
 # results
 results/
 noisy_results/
+calibration/
 
 # data
 spec_articles
