@@ -136,8 +136,8 @@ def main():
     Create all of the Hugging Face datasets.
     """
     # Base directory path, sample sizes
-    base_dir = "data/NFCorpus/articles"
-    sample_sizes = [6000, 7000, 8000, 9000, 10000, 10771]
+    base_dir = "data/SCIDOCS/articles"
+    sample_sizes = [6258]
 
     # Process and sample text files
     for sample_size in sample_sizes:
