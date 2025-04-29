@@ -2,6 +2,7 @@
 env/
 .env
 .DS_Store
+__pycache__
 
 # libs
 mteb/
@@ -10,6 +11,7 @@ mteb/
 results/
 noisy_results/
 calibration/
+modal_test/
 
 # data
 spec_articles

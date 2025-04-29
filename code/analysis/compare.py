@@ -6,7 +6,6 @@ import numpy as np
 from datasets import Dataset, DatasetDict, load_dataset
 import os
 import pandas as pd
-from dotenv import load_dotenv
 from tqdm import tqdm
 import json
 
@@ -103,7 +102,7 @@ def get_noisy_docs():
     """
     # Load data from HF
     dataset = load_dataset(
-        "cpondoc/noisy-fiqa-3185", ignore_verifications=True, keep_in_memory=True
+        "cpondoc/noisy-scidocs-6258", ignore_verifications=True, keep_in_memory=True
     )
     train_data = dataset["train"]
 
@@ -155,7 +154,7 @@ def save_mismatch_results(mismatch_results):
     Save examples of mismatch results to text file
     """
     # Define the folder to save text files
-    save_folder = "data/analysis/SCIDOCS/1470"
+    save_folder = "data/analysis/SCIDOCS/6258"
     os.makedirs(save_folder, exist_ok=True)  # Create the folder if it doesn't exist
 
     for result in mismatch_results:
@@ -188,11 +187,12 @@ if __name__ == "__main__":
 
     # Look at ground truth + a noisy run
     normal_ir = analyze_mteb_predictions(
-        "results/Snowflake/snowflake-arctic-embed-m/SCIDOCS/SCIDOCS_default_predictions.json"
+        "calibration/SCIDOCS/fineweb/1/0/SCIDOCS_default_predictions.json"
     )
     noisy_ir = analyze_mteb_predictions(
-        "noisy_results/no-rerank/SCIDOCS/1470-examples/Snowflake/snowflake-arctic-embed-m/SCIDOCS/SCIDOCS_default_predictions.json"
+        "calibration/SCIDOCS/fineweb/1/6000/SCIDOCS_default_predictions.json"
     )
+
 
     # Most recent run
     mismatch_list = compare_mteb_predictions(normal_ir, noisy_ir)
