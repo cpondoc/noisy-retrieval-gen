@@ -1,9 +1,8 @@
-
 import os
 import json
 import matplotlib.pyplot as plt
 
-root_dir = "calibration/NFCorpus/gpt2"
+root_dir = "calibration/fineweb"
 results = {}
 
 print(f"Scanning directory: {root_dir}")
@@ -17,9 +16,8 @@ for prob in os.listdir(root_dir):
     results[prob] = []
 
     for noisy_size in os.listdir(prob_path):
-        num_noisy_size = int(noisy_size)
-        if 0 < num_noisy_size < 1000:
-            continue
+        if noisy_size == "10000":
+            continue  # Skip 10000
 
         model_base = os.path.join(prob_path, noisy_size, "Snowflake__snowflake-arctic-embed-m")
         if not os.path.isdir(model_base):
@@ -66,8 +64,6 @@ else:
     plt.tight_layout()
 
     # Save the figure
-    save_path = "data/analysis/NFCorpus/calibration-gpt2.png"
+    save_path = "data/analysis/NFCorpus/calibration-updated.png"
     plt.savefig(save_path, dpi=300)
     print(f"Plot saved to {save_path}")
-
-
