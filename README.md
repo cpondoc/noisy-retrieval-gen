@@ -21,4 +21,13 @@ python3 noisy_eval.py
 
 ## To Run
 
+### Distillation
+
 [TO-DO]
+
+### Evaluation
+
+Run the main script:
+```bash
+python3 code/eval/rerank.py
+```
