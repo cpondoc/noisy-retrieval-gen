@@ -12,7 +12,8 @@ QUALITY_MODELS = {
     # "HuggingFaceTB/fineweb-edu-classifier": "fineweb",
     # "gpt2": "gpt2",
     # "nvidia/domain-classifier": "nvidia-dc",
-    "nfcorpus-trained-4-30": "nfcorpus-trained-4-30",
+    # "nfcorpus-trained-4-30": "nfcorpus-trained-4-30",
+    "nfcorpus-all-noise-classifier": "nfcorpus-all-noise-classifier",
 }
 
 # Also define the set of tasks
