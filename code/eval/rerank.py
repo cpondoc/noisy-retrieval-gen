@@ -20,7 +20,7 @@ TASKS = ["NFCorpus"]
 tasks = mteb.get_tasks(tasks=TASKS, languages=["eng"])
 
 # Iterate through each model, set up the initial encoder
-for subset_size in [0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000]:
+for subset_size in [0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 1000]:
     for quality_p in [0.999, 0.995, 0.99]:
         for key, value in QUALITY_MODELS.items():
             dual_encoder = SentenceTransformer(BASE_MODEL).to('cuda' if torch.cuda.is_available() else 'cpu')

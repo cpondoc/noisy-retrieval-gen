@@ -8,16 +8,14 @@ import torch
 from tqdm import tqdm
 from datasets import load_dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from huggingface_hub import login
-from dotenv import load_dotenv
 
-# Load local .env
-load_dotenv()
-HUGGINGFACE_TOKEN = os.getenv("HUGGINGFACE_TOKEN")
+# Mitigate memory fragmentation
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 # Setup Modal volume for output
 output_volume = modal.Volume.from_name("llama-outputs", create_if_missing=True)
 
+# Modal image and dependencies
 image = (
     modal.Image.debian_slim()
     .pip_install(
@@ -29,19 +27,18 @@ image = (
         "python-dotenv",
         "accelerate"
     )
-    .env({"HUGGINGFACE_TOKEN": HUGGINGFACE_TOKEN})
 )
 
-# App with volume mount
+# Define Modal app with volume + secret
 app = modal.App(
     name="llama3-annotation",
     image=image,
     volumes={"/outputs": output_volume},
+    secrets=[modal.Secret.from_name("hf-token-dos")],
 )
 
-# Static prompt
-base_prompt = """
-Below is an extract from a web page. Evaluate whether the page is noisy based on its relevance, coherence, and focus on the intended topic using the additive 5-point scoring system described below...
+# Scoring prompt
+base_prompt = """Below is an extract from a web page. Evaluate whether the page is noisy based on its relevance, coherence, and focus on the intended topic using the additive 5-point scoring system described below...
 
 - Add 1 point if the extract contains some information related to the intended topic but also includes significant off-topic material such as advertisements, promotional content, or irrelevant navigation links.
 - Add another point if the extract frequently mixes relevant and irrelevant content, resulting in disorganized or incoherent writing that makes it difficult to follow the intended topic.
@@ -57,36 +54,36 @@ After examining the extract:
 - Conclude with the score using the format: "Noise score: <total points>"
 """
 
-@app.function(gpu="A100", timeout=60 * 60 * 24)
+@app.function(gpu="A100-80GB", timeout=60 * 60 * 24)
 def run_annotation():
-    # Authenticate to Hugging Face
-    login(token=os.environ["HUGGINGFACE_TOKEN"])
+    from huggingface_hub import login
 
+    HUGGINGFACE_TOKEN = os.environ.get("HUGGINGFACE_TOKEN")
+    if not HUGGINGFACE_TOKEN:
+        raise RuntimeError("Missing HUGGINGFACE_TOKEN from Modal secret environment")
+
+    login(token=HUGGINGFACE_TOKEN)
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    # Load Llama 3 8B Instruct
     model_id = "meta-llama/Meta-Llama-3-8B-Instruct"
-
     tokenizer = AutoTokenizer.from_pretrained(
         model_id,
-        token=os.environ["HUGGINGFACE_TOKEN"],
+        token=HUGGINGFACE_TOKEN,
         trust_remote_code=True,
         resume_download=True,
     )
     tokenizer.pad_token = tokenizer.eos_token
+
     model = AutoModelForCausalLM.from_pretrained(
         model_id,
         torch_dtype=torch.bfloat16,
         device_map="auto",
-        token=os.environ["HUGGINGFACE_TOKEN"],
+        token=HUGGINGFACE_TOKEN,
         trust_remote_code=True,
         resume_download=True,
     )
 
-    # Load datasets
-    nfcorpus = load_dataset("mteb/nfcorpus", "corpus", split="corpus")
-    nfcorpus = [{"_id": doc["_id"], "text": doc["text"]} for doc in nfcorpus]
-
+    # Load dataset and clean metadata
     noisy_ds = load_dataset("cpondoc/noisy-nf-10771", split="train")
 
     def clean_metadata(example):
@@ -99,41 +96,62 @@ def run_annotation():
         return example
 
     noisy_ds = noisy_ds.map(clean_metadata)
-    noisy_docs = [{"_id": f"noisy_{i}", "text": doc["text"]} for i, doc in enumerate(noisy_ds)]
+    corpus = [{"_id": f"noisy_{i}", "text": doc["text"]} for i, doc in enumerate(noisy_ds)]
 
-    corpus = nfcorpus + noisy_docs
+    # Resume support
+    output_path = "/outputs/noisy-nf.csv"
+    already_done = set()
 
-    # Save output to persistent volume
-    output_path = "/outputs/annotations.csv"
-    file_exists = os.path.exists(output_path)
+    if os.path.exists(output_path):
+        with open(output_path, encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            already_done = set(row["_id"] for row in reader)
+
+    def safe_generate(batch_prompts, batch_size):
+        while batch_size > 0:
+            try:
+                inputs = tokenizer(
+                    batch_prompts,
+                    return_tensors="pt",
+                    padding=True,
+                    truncation=True,
+                    max_length=1024,
+                ).to(device)
+
+                with torch.no_grad():
+                    outputs = model.generate(
+                        **inputs,
+                        max_new_tokens=300,
+                        temperature=0.7,
+                        do_sample=False,
+                    )
+                return tokenizer.batch_decode(outputs, skip_special_tokens=True)
+            except torch.cuda.OutOfMemoryError:
+                torch.cuda.empty_cache()
+                batch_size //= 2
+                print(f"⚠️ OOM – retrying with batch size {batch_size}")
+        raise RuntimeError("OOM even with batch_size = 1")
 
     with open(output_path, mode="a", encoding="utf-8", newline="") as f:
         writer = csv.writer(f)
-        if not file_exists:
+        if not already_done:
             writer.writerow(["_id", "score"])
 
-        batch_size = 8  # ⚡ Batch 8 samples at a time
+        batch_size = 4
         for i in tqdm(range(0, len(corpus), batch_size), desc="Annotating corpus"):
-            batch = corpus[i:i+batch_size]
+            batch = [doc for doc in corpus[i:i+batch_size] if doc["_id"] not in already_done]
+            if not batch:
+                continue
 
             batch_prompts = [base_prompt.format(extract=doc["text"]) for doc in batch]
-            inputs = tokenizer(batch_prompts, return_tensors="pt", padding=True, truncation=True).to(device)
-
-            outputs = model.generate(
-                **inputs,
-                max_new_tokens=300,
-                temperature=0.7,
-                do_sample=False,
-            )
-
-            outputs_text = tokenizer.batch_decode(outputs, skip_special_tokens=True)
+            outputs_text = safe_generate(batch_prompts, batch_size)
 
             for doc, output_text in zip(batch, outputs_text):
                 match = re.search(r"Noise score:\s*(\d+)", output_text)
                 score = int(match.group(1)) if match else 0
-
                 writer.writerow([doc["_id"], score])
+                already_done.add(doc["_id"])
 
-            f.flush()  # flush after each batch for safety
+            f.flush()
 
     print(f"Annotations saved to {output_path}")

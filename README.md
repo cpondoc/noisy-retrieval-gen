@@ -23,7 +23,10 @@ python3 noisy_eval.py
 
 ### Distillation
 
-[TO-DO]
+First, to run the LLM annotation code, run:
+```bash
+modal run code/distillation/llama_annotation.py::run_annotation
+```
 
 ### Evaluation
 
