@@ -28,6 +28,16 @@ First, to run the LLM annotation code, run:
 modal run code/distillation/llama_annotation.py::run_annotation
 ```
 
+Then, to train the model, run:
+```bash
+modal run code/distillation/train_classifier.py
+```
+
+Finally, to upload the model weights, run:
+```bash
+modal run code/distillation/model_upload.py::upload_model_to_hf
+```
+
 ### Evaluation
 
 Run the main script:

@@ -16,8 +16,8 @@ app = App(
     secrets=[Secret.from_name("hf-token")],  # pulls HF_TOKEN from Modal secret
 )
 
-REPO_ID = "cpondoc/nfcorpus-original-classifier"
-FOLDER_PATH = "/vol/checkpoints/bert_snowflake_regression/final"
+REPO_ID = "cpondoc/nfcorpus-all-noise-classifier"
+FOLDER_PATH = "/vol/checkpoints/all-nfcorpus-noise/final"
 
 @app.function()
 def upload_model_to_hf():
