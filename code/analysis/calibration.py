@@ -3,7 +3,7 @@ import os
 import json
 import matplotlib.pyplot as plt
 
-root_dir = "calibration/NFCorpus/nfcorpus-trained-4-30"
+root_dir = "calibration/NFCorpus/nfcorpus-all-noise-classifier"
 results = {}
 
 print(f"Scanning directory: {root_dir}")
@@ -66,7 +66,7 @@ else:
     plt.tight_layout()
 
     # Save the figure
-    save_path = "data/analysis/NFCorpus/calibration-trained-4-30.png"
+    save_path = "data/analysis/NFCorpus/calibration-nfcorpus-all-noise-classifier.png"
     plt.savefig(save_path, dpi=300)
     print(f"Plot saved to {save_path}")
 

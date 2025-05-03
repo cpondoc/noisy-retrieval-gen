@@ -44,3 +44,8 @@ Run the main script:
 ```bash
 python3 code/eval/rerank.py
 ```
+
+Next, you can analyze by running:
+```bash
+python3 code/analysis/calibration.py
+```
