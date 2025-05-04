@@ -54,8 +54,25 @@ After examining the extract:
 - Conclude with the score using the format: "Noise score: <total points>"
 """
 
+def load_corpus():
+    from datasets import load_dataset
+
+    # Load TREC-COVID corpus from BeIR
+    mteb_ds = load_dataset("BeIR/trec-covid", "corpus")["corpus"]
+
+    # Take only the first quarter of the dataset
+    quarter_len = len(mteb_ds) // 4
+    mteb_ds = mteb_ds.select(range(quarter_len))
+
+    # Convert to list of {"_id", "text"}
+    corpus = [{"_id": doc["_id"], "text": doc["text"]} for doc in mteb_ds]
+    return corpus
+
 @app.function(gpu="A100-80GB", timeout=60 * 60 * 24)
 def run_annotation():
+    """
+    Run model distillation + annotation loop
+    """
     from huggingface_hub import login
 
     HUGGINGFACE_TOKEN = os.environ.get("HUGGINGFACE_TOKEN")
@@ -83,23 +100,10 @@ def run_annotation():
         resume_download=True,
     )
 
-    # Load dataset and clean metadata
-    noisy_ds = load_dataset("cpondoc/noisy-nf-10771", split="train")
-
-    def clean_metadata(example):
-        lines = example["text"].splitlines()
-        lines = [
-            line for line in lines
-            if not line.startswith(("URL:", "TOPIC SET:", "TOPIC:", "SIMILARITY:"))
-        ]
-        example["text"] = "\n".join(lines).strip()
-        return example
-
-    noisy_ds = noisy_ds.map(clean_metadata)
-    corpus = [{"_id": f"noisy_{i}", "text": doc["text"]} for i, doc in enumerate(noisy_ds)]
+    corpus = load_corpus()
 
     # Resume support
-    output_path = "/outputs/noisy-nf.csv"
+    output_path = "/outputs/trec-covid.csv"
     already_done = set()
 
     if os.path.exists(output_path):
@@ -137,7 +141,7 @@ def run_annotation():
         if not already_done:
             writer.writerow(["_id", "score"])
 
-        batch_size = 4
+        batch_size = 12
         for i in tqdm(range(0, len(corpus), batch_size), desc="Annotating corpus"):
             batch = [doc for doc in corpus[i:i+batch_size] if doc["_id"] not in already_done]
             if not batch:
