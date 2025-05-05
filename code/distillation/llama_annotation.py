@@ -13,7 +13,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 # Setup Modal volume for output
-output_volume = modal.Volume.from_name("llama-outputs", create_if_missing=True)
+output_volume = modal.Volume.from_name("llama-output", create_if_missing=True)
 
 # Modal image and dependencies
 image = (
@@ -34,7 +34,7 @@ app = modal.App(
     name="llama3-annotation",
     image=image,
     volumes={"/outputs": output_volume},
-    secrets=[modal.Secret.from_name("hf-token-dos")],
+    secrets=[modal.Secret.from_name("hf-token")],
 )
 
 # Scoring prompt
@@ -60,8 +60,8 @@ def load_corpus():
     # Load TREC-COVID corpus from BeIR
     mteb_ds = load_dataset("BeIR/trec-covid", "corpus")["corpus"]
 
-    # Take only the first quarter of the dataset
-    quarter_len = len(mteb_ds) // 4
+    # Take only the first half of the dataset
+    quarter_len = len(mteb_ds) // 2
     mteb_ds = mteb_ds.select(range(quarter_len))
 
     # Convert to list of {"_id", "text"}
@@ -75,7 +75,7 @@ def run_annotation():
     """
     from huggingface_hub import login
 
-    HUGGINGFACE_TOKEN = os.environ.get("HUGGINGFACE_TOKEN")
+    HUGGINGFACE_TOKEN = os.environ.get("HF_TOKEN")
     if not HUGGINGFACE_TOKEN:
         raise RuntimeError("Missing HUGGINGFACE_TOKEN from Modal secret environment")
 
