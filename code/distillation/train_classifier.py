@@ -3,7 +3,7 @@
 import os
 import pandas as pd
 import numpy as np
-from datasets import load_dataset, Dataset, ClassLabel
+from datasets import load_dataset, Dataset
 from transformers import (
     AutoTokenizer,
     DataCollatorWithPadding,
@@ -14,8 +14,8 @@ from transformers import (
 from modal import App, gpu, method, Image, Volume
 
 # === Modal Setup ===
-app = App(name="bert-covid-classifier")
-volume = Volume.from_name("noisy-covid-vol", create_if_missing=True)
+app = App(name="bert-covid-regression")
+volume = Volume.from_name("noisy-covid-regression-vol", create_if_missing=True)
 image = (
     Image.debian_slim()
     .pip_install(
@@ -32,18 +32,22 @@ image = (
 )
 
 # === Constants ===
-DATASET_NAME = "mteb/nfcorpus"
+DATASET_NAME = "BeIR/trec-covid"
 TARGET_COLUMN = "score"
 CACHE_DIR = "/vol/cache"
 ANNOTATION_PATH = "/vol/code/distillation/trec-covid.csv"
 BASE_MODEL_NAME = "Snowflake/snowflake-arctic-embed-m"
 CHECKPOINT_DIR = "/vol/checkpoints/all-trec-covid-noise"
 
+# === Metrics for Regression ===
 def compute_metrics(eval_pred):
-    from sklearn.metrics import f1_score
-    logits, labels = eval_pred
-    preds = np.argmax(logits, axis=-1)
-    return {"f1_macro": f1_score(labels, preds, average="macro")}
+    from sklearn.metrics import mean_squared_error, r2_score
+    preds, labels = eval_pred
+    preds = preds.flatten()
+    return {
+        "mse": mean_squared_error(labels, preds),
+        "r2": r2_score(labels, preds),
+    }
 
 @app.function(
     gpu="A100-40GB",
@@ -52,47 +56,37 @@ def compute_metrics(eval_pred):
     timeout=60 * 60 * 4,
 )
 def train_classifier():
-    # === Load datasets ===
+    # === Load TREC-COVID corpus ===
     def load_corpus():
-        # Load TREC-COVID corpus from BeIR
         mteb_ds = load_dataset("BeIR/trec-covid", "corpus", cache_dir=CACHE_DIR)["corpus"]
-
-        # Take only the first quarter of the dataset
         quarter_len = len(mteb_ds) // 4
         mteb_ds = mteb_ds.select(range(quarter_len))
-
-        # Convert to list of {"_id", "text"}
-        corpus = [{"_id": doc["_id"], "text": doc["text"]} for doc in mteb_ds]
-        return corpus
+        return [{"_id": doc["_id"], "text": doc["text"]} for doc in mteb_ds]
 
     covid_dataset = load_corpus()
-    covid_corpus = load_corpus()
 
     # === Load annotations ===
-    annotations_df = pd.read_csv("/vol/code/distillation/trec-covid.csv")
-    annotations_df[TARGET_COLUMN] = annotations_df[TARGET_COLUMN].clip(0, 5).astype(int)
+    annotations_df = pd.read_csv(ANNOTATION_PATH)
+    annotations_df[TARGET_COLUMN] = annotations_df[TARGET_COLUMN].clip(0, 5)
 
-    # === Merge annotations into dataset ===
+    # === Merge annotations with text ===
     covid_df = pd.DataFrame(covid_dataset)
     covid_merged = covid_df.merge(annotations_df, on="_id", how="inner")
-
-    # === Rename column to expected target name ===
     covid_merged = covid_merged.rename(columns={"score": TARGET_COLUMN})
 
     # === Convert to HuggingFace dataset ===
     dataset = Dataset.from_pandas(covid_merged)
-    dataset = dataset.map(lambda x: {TARGET_COLUMN: np.clip(int(x[TARGET_COLUMN]), 0, 5)}, num_proc=8)
-    dataset = dataset.cast_column(TARGET_COLUMN, ClassLabel(names=[str(i) for i in range(6)]))
-    dataset = dataset.train_test_split(train_size=0.9, seed=42, stratify_by_column=TARGET_COLUMN)
+
+    # === Split into train/test sets ===
+    dataset = dataset.train_test_split(train_size=0.9, seed=42)
 
     # === Load model and tokenizer ===
     model = AutoModelForSequenceClassification.from_pretrained(
         BASE_MODEL_NAME,
-        num_labels=6,
+        num_labels=1,  # ← Regression
         classifier_dropout=0.0,
         hidden_dropout_prob=0.0,
         output_hidden_states=False,
-        problem_type="single_label_classification",
     )
     for param in model.bert.embeddings.parameters():
         param.requires_grad = False
@@ -103,16 +97,17 @@ def train_classifier():
     if not tokenizer.pad_token:
         tokenizer.pad_token = tokenizer.eos_token
 
+    # === Preprocessing function ===
     def preprocess(examples):
         texts = [str(t) for t in examples["text"]]
         batch = tokenizer(texts, truncation=True, padding=True)
-        batch["labels"] = [int(score) for score in examples[TARGET_COLUMN]]  # ← was float
+        batch["labels"] = [float(score) for score in examples[TARGET_COLUMN]]
         return batch
 
     dataset = dataset.map(preprocess, batched=True)
     data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
 
-    # === Training arguments and Trainer setup ===
+    # === Training Arguments ===
     training_args = TrainingArguments(
         output_dir=CHECKPOINT_DIR,
         eval_strategy="steps",
@@ -127,11 +122,12 @@ def train_classifier():
         per_device_eval_batch_size=64,
         eval_on_start=True,
         load_best_model_at_end=True,
-        metric_for_best_model="f1_macro",
-        greater_is_better=True,
+        metric_for_best_model="mse",  # ← Use regression metric
+        greater_is_better=False,      # ← Lower MSE is better
         bf16=True,
     )
 
+    # === Trainer ===
     trainer = Trainer(
         model=model,
         args=training_args,
@@ -142,6 +138,7 @@ def train_classifier():
         compute_metrics=compute_metrics,
     )
 
+    # === Train and Save ===
     trainer.train()
     trainer.save_model(os.path.join(CHECKPOINT_DIR, "final"))
 
