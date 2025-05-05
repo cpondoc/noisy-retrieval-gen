@@ -45,6 +45,11 @@ Run the main script:
 python3 code/eval/rerank.py
 ```
 
+For running on Modal, you can run:
+```bash
+modal run code/eval/modal_rerank.py
+```
+
 Next, you can analyze by running:
 ```bash
 python3 code/analysis/calibration.py

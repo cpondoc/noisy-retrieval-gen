@@ -1,6 +1,6 @@
 import modal
 
-app = modal.App("fineweb-reranker")
+app = modal.App("covid-in-domain-reranker")
 
 # Path to your local custom mteb
 LOCAL_MTEB_DIR = "./mteb"
@@ -31,14 +31,14 @@ def run_reranker():
 
     BASE_MODEL = "Snowflake/snowflake-arctic-embed-m"
     QUALITY_MODELS = {
-        "gpt2": "gpt2",
+        "covid-one-fourth-classifier" : "covid-one-fourth-classifier",
     }
 
-    TASKS = ["NFCorpus"]
+    TASKS = ["TRECCOVID"]
     tasks = mteb.get_tasks(tasks=TASKS, languages=["eng"])
     eval_splits = ["test"]
 
-    for subset_size in [9000, 10000]:
+    for subset_size in [0]:
         for quality_p in [0.995, 0.999, 0.99]:
             for key, value in QUALITY_MODELS.items():
                 print(f"Running task={TASKS[0]}, quality_p={quality_p}, subset_size={subset_size}")
@@ -55,7 +55,5 @@ def run_reranker():
                     subset_size=subset_size,
                     quality_p=quality_p,
                     quality_classifier=key,
-                    classifier_normalization="softmax_entropy",
-                    classification_tokenizer = "gpt2",
                     quality_batch_size=16,
                 )
