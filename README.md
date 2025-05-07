@@ -28,7 +28,7 @@ First, to run the LLM annotation code, run:
 modal run code/distillation/llama_annotation.py::run_annotation
 ```
 
-Then, to train the model, run:
+This will produce a `.csv` file with annotations. Once you've uploaded the file to the appropriate Modal volume, you can then train the model, by running:
 ```bash
 modal run code/distillation/train_classifier.py
 ```

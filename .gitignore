@@ -20,6 +20,8 @@ articles/
 data/
 cos_scores_batch_0.txt
 quality_scores_batch_0.txt
+gpt2_quality_scores_batch_0.txt
+nvidia/
 
 # models
 models/

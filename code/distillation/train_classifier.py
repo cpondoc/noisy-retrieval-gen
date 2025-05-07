@@ -14,8 +14,8 @@ from transformers import (
 from modal import App, gpu, method, Image, Volume
 
 # === Modal Setup ===
-app = App(name="bert-covid-regression")
-volume = Volume.from_name("noisy-covid-regression-vol", create_if_missing=True)
+app = App(name="bert-covid-regression-half")
+volume = Volume.from_name("noisy-covid-regression-half", create_if_missing=True)
 image = (
     Image.debian_slim()
     .pip_install(
@@ -35,9 +35,9 @@ image = (
 DATASET_NAME = "BeIR/trec-covid"
 TARGET_COLUMN = "score"
 CACHE_DIR = "/vol/cache"
-ANNOTATION_PATH = "/vol/code/distillation/trec-covid.csv"
+ANNOTATION_PATH = "/vol/half-trec-covid.csv"
 BASE_MODEL_NAME = "Snowflake/snowflake-arctic-embed-m"
-CHECKPOINT_DIR = "/vol/checkpoints/all-trec-covid-noise"
+CHECKPOINT_DIR = "/vol/checkpoints/half-trec-covid-noise"
 
 # === Metrics for Regression ===
 def compute_metrics(eval_pred):
@@ -59,7 +59,7 @@ def train_classifier():
     # === Load TREC-COVID corpus ===
     def load_corpus():
         mteb_ds = load_dataset("BeIR/trec-covid", "corpus", cache_dir=CACHE_DIR)["corpus"]
-        quarter_len = len(mteb_ds) // 4
+        quarter_len = len(mteb_ds) // 2
         mteb_ds = mteb_ds.select(range(quarter_len))
         return [{"_id": doc["_id"], "text": doc["text"]} for doc in mteb_ds]
 
