@@ -31,7 +31,7 @@ def run_reranker():
 
     BASE_MODEL = "Snowflake/snowflake-arctic-embed-m"
     QUALITY_MODELS = {
-        "covid-one-fourth-regression-classifier" : "covid-one-fourth-regression-classifier",
+        "covid-one-half-regression-classifier" : "covid-one-half-regression-classifier",    
     }
 
     TASKS = ["TRECCOVID"]
