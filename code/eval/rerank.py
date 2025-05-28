@@ -10,7 +10,7 @@ from sentence_transformers import SentenceTransformer
 BASE_MODEL = "Snowflake/snowflake-arctic-embed-m"
 QUALITY_MODELS = {
     # "HuggingFaceTB/fineweb-edu-classifier": "fineweb",
-    "gpt2": "gpt2",
+    # "gpt2": "gpt2",
     "nvidia/domain-classifier": "nvidia-dc",
     # "nfcorpus-trained-4-30": "nfcorpus-trained-4-30",
     # "nfcorpus-all-noise-classifier": "nfcorpus-all-noise-classifier",

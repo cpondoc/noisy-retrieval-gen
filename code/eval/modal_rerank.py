@@ -39,7 +39,7 @@ def run_reranker():
     eval_splits = ["test"]
 
     for subset_size in [0]:
-        for quality_p in [0.995, 0.999, 0.99]:
+        for quality_p in [0.85, 0.8]:
             for key, value in QUALITY_MODELS.items():
                 print(f"Running task={TASKS[0]}, quality_p={quality_p}, subset_size={subset_size}")
                 dual_encoder = SentenceTransformer(BASE_MODEL).to(
