@@ -12,6 +12,7 @@ results/
 noisy_results/
 calibration/
 modal_test/
+k-fold/
 
 # data
 spec_articles

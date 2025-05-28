@@ -80,8 +80,6 @@ def train_classifier():
     # Drop any bad rows, then cast
     annotations_df = annotations_df[pd.to_numeric(annotations_df[TARGET_COLUMN], errors="coerce").notnull()]
     annotations_df[TARGET_COLUMN] = annotations_df[TARGET_COLUMN].astype(float).clip(0, 5)
-    # annotations_df = pd.read_csv(ANNOTATION_PATH, header=0)
-    # annotations_df[TARGET_COLUMN] = annotations_df[TARGET_COLUMN].astype(float).clip(0, 5)
     annotation_ids = set(annotations_df["_id"].astype(str))
 
     # === Load NFCorpus documents filtered by annotation IDs ===
@@ -129,11 +127,13 @@ def train_classifier():
 
     # === Convert to HuggingFace dataset ===
     dataset = Dataset.from_pandas(covid_merged)
+    print("HF Dataset")
 
     # === Train/test split ===
     dataset = dataset.train_test_split(train_size=0.9, seed=42)
 
     # === Load model and tokenizer ===
+    print("SET UP MODEL")
     model = AutoModelForSequenceClassification.from_pretrained(
         BASE_MODEL_NAME,
         num_labels=1,
