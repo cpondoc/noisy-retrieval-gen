@@ -14,8 +14,8 @@ from transformers import (
 from modal import App, gpu, method, Image, Volume
 
 # === Modal Setup ===
-app = App(name="bert-covid-regression-half")
-volume = Volume.from_name("noisy-covid-regression-half", create_if_missing=True)
+app = App(name="bert-nfcorpus-k-fold")
+volume = Volume.from_name("noisy-nfcorpus-k-fold", create_if_missing=True)
 image = (
     Image.debian_slim()
     .pip_install(
@@ -32,12 +32,11 @@ image = (
 )
 
 # === Constants ===
-DATASET_NAME = "BeIR/trec-covid"
 TARGET_COLUMN = "score"
 CACHE_DIR = "/vol/cache"
-ANNOTATION_PATH = "/vol/half-trec-covid.csv"
+ANNOTATION_PATH = "/vol/nfcorpus-k-fold-training.csv"
 BASE_MODEL_NAME = "Snowflake/snowflake-arctic-embed-m"
-CHECKPOINT_DIR = "/vol/checkpoints/half-trec-covid-noise"
+CHECKPOINT_DIR = "/vol/checkpoints/nfcorpus-k-fold"
 
 # === Metrics for Regression ===
 def compute_metrics(eval_pred):
@@ -56,18 +55,72 @@ def compute_metrics(eval_pred):
     timeout=60 * 60 * 4,
 )
 def train_classifier():
-    # === Load TREC-COVID corpus ===
-    def load_corpus():
-        mteb_ds = load_dataset("BeIR/trec-covid", "corpus", cache_dir=CACHE_DIR)["corpus"]
-        quarter_len = len(mteb_ds) // 2
-        mteb_ds = mteb_ds.select(range(quarter_len))
-        return [{"_id": doc["_id"], "text": doc["text"]} for doc in mteb_ds]
+    import os
+    import pandas as pd
+    from datasets import load_dataset, Dataset
+    from transformers import (
+        AutoTokenizer,
+        DataCollatorWithPadding,
+        TrainingArguments,
+        Trainer,
+        AutoModelForSequenceClassification,
+    )
 
-    covid_dataset = load_corpus()
+    # === Load annotations first ===
+    # Load CSV without assuming anything weird about index
+    annotations_df = pd.read_csv(ANNOTATION_PATH, index_col=False)
 
-    # === Load annotations ===
-    annotations_df = pd.read_csv(ANNOTATION_PATH)
-    annotations_df[TARGET_COLUMN] = annotations_df[TARGET_COLUMN].clip(0, 5)
+    # Print a few rows to debug
+    print(annotations_df.head())
+    print("Columns:", annotations_df.columns.tolist())
+
+    # Ensure the column exists
+    assert TARGET_COLUMN in annotations_df.columns, f"Missing column: {TARGET_COLUMN}"
+
+    # Drop any bad rows, then cast
+    annotations_df = annotations_df[pd.to_numeric(annotations_df[TARGET_COLUMN], errors="coerce").notnull()]
+    annotations_df[TARGET_COLUMN] = annotations_df[TARGET_COLUMN].astype(float).clip(0, 5)
+    # annotations_df = pd.read_csv(ANNOTATION_PATH, header=0)
+    # annotations_df[TARGET_COLUMN] = annotations_df[TARGET_COLUMN].astype(float).clip(0, 5)
+    annotation_ids = set(annotations_df["_id"].astype(str))
+
+    # === Load NFCorpus documents filtered by annotation IDs ===
+    def load_corpus(annotation_ids):
+        mteb_ds = load_dataset("BeIR/nfcorpus", "corpus", cache_dir=CACHE_DIR)["corpus"]
+        return [
+            {"_id": doc["_id"], "text": doc["text"]}
+            for doc in mteb_ds
+            if doc["_id"] in annotation_ids
+        ]
+
+    # === Load and clean noisy documents filtered by annotation IDs ===
+    def load_noisy_dataset(annotation_ids, subset_size=None):
+        print(f"Loading in {str(subset_size) if subset_size else 'full dataset'}!")
+        dataset = load_dataset("cpondoc/noisy-nf-10771", keep_in_memory=True)
+
+        def remove_metadata(example):
+            lines = example["text"].splitlines()
+            lines = [
+                line for line in lines
+                if not line.startswith(("URL:", "TOPIC SET:", "TOPIC:", "SIMILARITY:"))
+            ]
+            cleaned_text = "\n".join(lines).strip()
+            example["text"] = cleaned_text
+            return example
+
+        dataset = dataset.map(remove_metadata)
+        train_data = dataset["train"]
+
+        if subset_size:
+            train_data = train_data.select(range(min(subset_size, len(train_data))))
+
+        processed_data = [
+            {"_id": f"doc_{i}", "text": train_data["text"][i]}
+            for i in range(len(train_data["text"]))
+        ]
+
+        return [doc for doc in processed_data if doc["_id"] in annotation_ids]
+    covid_dataset = load_corpus(annotation_ids) + load_noisy_dataset(annotation_ids)
 
     # === Merge annotations with text ===
     covid_df = pd.DataFrame(covid_dataset)
@@ -77,13 +130,13 @@ def train_classifier():
     # === Convert to HuggingFace dataset ===
     dataset = Dataset.from_pandas(covid_merged)
 
-    # === Split into train/test sets ===
+    # === Train/test split ===
     dataset = dataset.train_test_split(train_size=0.9, seed=42)
 
     # === Load model and tokenizer ===
     model = AutoModelForSequenceClassification.from_pretrained(
         BASE_MODEL_NAME,
-        num_labels=1,  # ← Regression
+        num_labels=1,
         classifier_dropout=0.0,
         hidden_dropout_prob=0.0,
         output_hidden_states=False,
@@ -97,7 +150,7 @@ def train_classifier():
     if not tokenizer.pad_token:
         tokenizer.pad_token = tokenizer.eos_token
 
-    # === Preprocessing function ===
+    # === Tokenization function ===
     def preprocess(examples):
         texts = [str(t) for t in examples["text"]]
         batch = tokenizer(texts, truncation=True, padding=True)
@@ -107,7 +160,7 @@ def train_classifier():
     dataset = dataset.map(preprocess, batched=True)
     data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
 
-    # === Training Arguments ===
+    # === Training arguments ===
     training_args = TrainingArguments(
         output_dir=CHECKPOINT_DIR,
         eval_strategy="steps",
@@ -122,12 +175,12 @@ def train_classifier():
         per_device_eval_batch_size=64,
         eval_on_start=True,
         load_best_model_at_end=True,
-        metric_for_best_model="mse",  # ← Use regression metric
-        greater_is_better=False,      # ← Lower MSE is better
+        metric_for_best_model="mse",
+        greater_is_better=False,
         bf16=True,
     )
 
-    # === Trainer ===
+    # === Train model ===
     trainer = Trainer(
         model=model,
         args=training_args,
@@ -138,7 +191,6 @@ def train_classifier():
         compute_metrics=compute_metrics,
     )
 
-    # === Train and Save ===
     trainer.train()
     trainer.save_model(os.path.join(CHECKPOINT_DIR, "final"))
 

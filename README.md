@@ -30,6 +30,8 @@ modal run code/distillation/llama_annotation.py::run_annotation
 
 This will produce a `.csv` file with annotations. Once you've uploaded the file to the appropriate Modal volume, you can then train the model, by running:
 ```bash
+modal volume create <volume_name>
+modal volume put <volume_name> ./local_file_or_folder /target_path_on_volume
 modal run code/distillation/train_classifier.py
 ```
 
