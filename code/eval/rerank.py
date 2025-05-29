@@ -23,7 +23,7 @@ tasks = mteb.get_tasks(tasks=TASKS, languages=["eng"])
 
 # Iterate through each model, set up the initial encoder
 for subset_size in [10771]:
-    for quality_p in [0, 0.995, 0.99, 0.999, 0.9]:
+    for quality_p in [1, 0.995, 0.99, 0.999, 0.9]:
         for key, value in QUALITY_MODELS.items():
             dual_encoder = SentenceTransformer(BASE_MODEL).to('cuda' if torch.cuda.is_available() else 'cpu')
             eval_splits = ["test"]
@@ -35,7 +35,7 @@ for subset_size in [10771]:
                     dual_encoder,
                     eval_splits=eval_splits,
                     save_predictions=True,
-                    output_folder=f"k-fold/{task}/{value}/{str(quality_p)}/{str(subset_size)}/",
+                    output_folder=f"k-fold/validation/{task}/{value}/{str(quality_p)}/{str(subset_size)}/",
                     subset_size=subset_size,
                     quality_p=quality_p,
                     quality_classifier=key,

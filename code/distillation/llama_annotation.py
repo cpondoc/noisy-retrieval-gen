@@ -57,15 +57,21 @@ After examining the extract:
 def load_corpus():
     from datasets import load_dataset
 
+    # Load IDs to include
+    target_ids_path = "/outputs/unannotated_ids.txt"
+    with open(target_ids_path, "r", encoding="utf-8") as f:
+        target_ids = set(line.strip() for line in f if line.strip())
+
     # Load TREC-COVID corpus from BeIR
     mteb_ds = load_dataset("BeIR/trec-covid", "corpus")["corpus"]
 
-    # Take only the first half of the dataset
-    quarter_len = len(mteb_ds) // 2
-    mteb_ds = mteb_ds.select(range(quarter_len))
+    # Filter and convert to list of {"_id", "text"}
+    corpus = [
+        {"_id": doc["_id"], "text": doc["text"]}
+        for doc in mteb_ds
+        if doc["_id"] in target_ids
+    ]
 
-    # Convert to list of {"_id", "text"}
-    corpus = [{"_id": doc["_id"], "text": doc["text"]} for doc in mteb_ds]
     return corpus
 
 @app.function(gpu="A100-80GB", timeout=60 * 60 * 24)
@@ -103,7 +109,7 @@ def run_annotation():
     corpus = load_corpus()
 
     # Resume support
-    output_path = "/outputs/trec-covid.csv"
+    output_path = "/outputs/trec-covid-solely.csv"
     already_done = set()
 
     if os.path.exists(output_path):
