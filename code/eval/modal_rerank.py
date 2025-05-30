@@ -54,9 +54,10 @@ def run_reranker():
                     dual_encoder,
                     eval_splits=eval_splits,
                     save_predictions=True,
-                    output_folder=f"/outputs/modal_test/{TASKS[0]}/{value}/{quality_p}/{subset_size}/",
+                    output_folder=f"/outputs/modal_test/validation/{TASKS[0]}/{value}/{quality_p}/{subset_size}/",
                     subset_size=subset_size,
                     quality_p=quality_p,
                     quality_classifier=key,
+                    classifier_normalization="softmax_entropy",
                     quality_batch_size=16,
                 )
