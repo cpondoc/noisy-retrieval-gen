@@ -14,8 +14,8 @@ from transformers import (
 from modal import App, gpu, method, Image, Volume
 
 # === Modal Setup ===
-app = App(name="bert-nfcorpus-k-fold")
-volume = Volume.from_name("noisy-nfcorpus-k-fold", create_if_missing=True)
+app = App(name="bert-trec-covid-k-fold")
+volume = Volume.from_name("noisy-trec-covid-k-fold", create_if_missing=True)
 image = (
     Image.debian_slim()
     .pip_install(
@@ -34,9 +34,9 @@ image = (
 # === Constants ===
 TARGET_COLUMN = "score"
 CACHE_DIR = "/vol/cache"
-ANNOTATION_PATH = "/vol/nfcorpus-k-fold-training.csv"
+ANNOTATION_PATH = "/vol/k-fold-trec-covid.csv"
 BASE_MODEL_NAME = "Snowflake/snowflake-arctic-embed-m"
-CHECKPOINT_DIR = "/vol/checkpoints/nfcorpus-k-fold"
+CHECKPOINT_DIR = "/vol/checkpoints/trec-covid-k-fold"
 
 # === Metrics for Regression ===
 def compute_metrics(eval_pred):
@@ -84,7 +84,7 @@ def train_classifier():
 
     # === Load NFCorpus documents filtered by annotation IDs ===
     def load_corpus(annotation_ids):
-        mteb_ds = load_dataset("BeIR/nfcorpus", "corpus", cache_dir=CACHE_DIR)["corpus"]
+        mteb_ds = load_dataset("BeIR/trec-covid", "corpus", cache_dir=CACHE_DIR)["corpus"]
         return [
             {"_id": doc["_id"], "text": doc["text"]}
             for doc in mteb_ds
@@ -118,7 +118,7 @@ def train_classifier():
         ]
 
         return [doc for doc in processed_data if doc["_id"] in annotation_ids]
-    covid_dataset = load_corpus(annotation_ids) + load_noisy_dataset(annotation_ids)
+    covid_dataset = load_corpus(annotation_ids)# + load_noisy_dataset(annotation_ids)
 
     # === Merge annotations with text ===
     covid_df = pd.DataFrame(covid_dataset)
@@ -127,13 +127,11 @@ def train_classifier():
 
     # === Convert to HuggingFace dataset ===
     dataset = Dataset.from_pandas(covid_merged)
-    print("HF Dataset")
 
     # === Train/test split ===
     dataset = dataset.train_test_split(train_size=0.9, seed=42)
 
     # === Load model and tokenizer ===
-    print("SET UP MODEL")
     model = AutoModelForSequenceClassification.from_pretrained(
         BASE_MODEL_NAME,
         num_labels=1,

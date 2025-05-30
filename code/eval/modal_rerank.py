@@ -31,15 +31,18 @@ def run_reranker():
 
     BASE_MODEL = "Snowflake/snowflake-arctic-embed-m"
     QUALITY_MODELS = {
-        "cpondoc/nfcorpus-k-fold-classifier" : "cpondoc/nfcorpus-k-fold-classifier",    
+        "trec-covid-k-fold-classifier" : "trec-covid-k-fold-classifier",    
+        "HuggingFaceTB/fineweb-edu-classifier": "fineweb",
+        "gpt2": "gpt2",
+        "nvidia/domain-classifier": "nvidia-dc",
     }
 
-    TASKS = ["NFCorpus"]
+    TASKS = ["TRECCOVID"]
     tasks = mteb.get_tasks(tasks=TASKS, languages=["eng"])
     eval_splits = ["test"]
 
     for subset_size in [1442]:
-        for quality_p in [0.999, 0.995, 0.99]:
+        for quality_p in [0.999, 0.995, 0.99, 0.9]:
             for key, value in QUALITY_MODELS.items():
                 print(f"Running task={TASKS[0]}, quality_p={quality_p}, subset_size={subset_size}")
                 dual_encoder = SentenceTransformer(BASE_MODEL).to(
@@ -51,7 +54,7 @@ def run_reranker():
                     dual_encoder,
                     eval_splits=eval_splits,
                     save_predictions=True,
-                    output_folder=f"/k-fold-outputs/modal_test/{TASKS[0]}/{value}/{quality_p}/{subset_size}/",
+                    output_folder=f"/outputs/modal_test/{TASKS[0]}/{value}/{quality_p}/{subset_size}/",
                     subset_size=subset_size,
                     quality_p=quality_p,
                     quality_classifier=key,

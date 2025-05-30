@@ -2,7 +2,7 @@ import os
 from modal import App, Volume, Image, Secret
 
 # === Modal setup ===
-volume = Volume.from_name("noisy-nfcorpus-k-fold", create_if_missing=False)
+volume = Volume.from_name("noisy-trec-covid-k-fold", create_if_missing=False)
 
 image = (
     Image.debian_slim()
@@ -16,8 +16,8 @@ app = App(
     secrets=[Secret.from_name("hf-token")],  # pulls HF_TOKEN from Modal secret
 )
 
-REPO_ID = "cpondoc/nfcorpus-k-fold-classifier"
-FOLDER_PATH = "/vol/checkpoints/nfcorpus-k-fold/final"
+REPO_ID = "cpondoc/trec-covid-k-fold-classifier"
+FOLDER_PATH = "/vol/checkpoints/trec-covid-k-fold/final"
 
 @app.function()
 def upload_model_to_hf():
